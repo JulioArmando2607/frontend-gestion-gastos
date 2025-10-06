@@ -1,11 +1,9 @@
 import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/pages/crearCuenta.dart';
-import 'package:app_gestion_gastos/pages/dashboard_page.dart';
-import 'package:app_gestion_gastos/pages/home.dart';
+import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -75,11 +73,12 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _storage.read(key: 'email').then((v) {
-      if (v != null)
+      if (v != null) {
         setState(() {
           _email.text = v;
           _rememberMe = true;
         });
+      }
     });
   }
 

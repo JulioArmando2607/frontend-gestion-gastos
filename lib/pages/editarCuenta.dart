@@ -1,11 +1,8 @@
-import 'dart:io';
 
 import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/pages/home.dart';
-import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:jwt_decoder/jwt_decoder.dart';
 

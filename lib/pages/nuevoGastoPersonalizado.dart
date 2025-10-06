@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -246,7 +245,7 @@ class _NuevoCardPersonalizadoPageState extends State<NuevoCardPersonalizadoPage>
                                 Text('Moneda', style: const TextStyle(fontWeight: FontWeight.w600)),
                                 const SizedBox(height: 6),
                                 DropdownButtonFormField<String>(
-                                  value: _moneda,
+                                  initialValue: _moneda,
                                   items: const [
                                     DropdownMenuItem(value: 'PEN', child: Text('PEN - Sol peruano')),
                                     DropdownMenuItem(value: 'USD', child: Text('USD - Dólar')),

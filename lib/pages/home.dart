@@ -1,15 +1,11 @@
 import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/clases/Movimiento.dart';
 import 'package:app_gestion_gastos/pages/editarCuenta.dart';
-import 'package:app_gestion_gastos/pages/editarMovimiento.dart';
 import 'package:app_gestion_gastos/pages/gastosDiarios.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
-import 'package:app_gestion_gastos/pages/nuevoMoviento.dart';
 import 'package:flutter/material.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
 
@@ -75,20 +71,35 @@ class _HomePageState extends State<HomePage> {
   void obtenerCarResumen() async {
     final response = await service.cardResumen(context);
     if (response.statusCode == 200) {
-      final saldoTotalRaw = jsonDecode(response.body)['saldoTotal'];
-      final double saldoTotal = double.parse(saldoTotalRaw.toString());
+      try {
+        final json = jsonDecode(response.body);
 
-      final ingresoRaw = jsonDecode(response.body)['totalIngresos'];
-      final double ingresoTotal = double.parse(ingresoRaw.toString());
+        // Validar si vienen los datos
+        final saldoTotalRaw = json['saldoTotal'];
+        final ingresoRaw = json['totalIngresos'];
+        final gastosRaw = json['totalGastos'];
 
-      final gastosRaw = jsonDecode(response.body)['totalGastos'];
-      final double gastosTotal = double.parse(gastosRaw.toString());
+        final double saldoTotal = saldoTotalRaw != null
+            ? double.tryParse(saldoTotalRaw.toString()) ?? 0.0
+            : 0.0;
+        final double ingresoTotal = ingresoRaw != null
+            ? double.tryParse(ingresoRaw.toString()) ?? 0.0
+            : 0.0;
+        final double gastosTotal = gastosRaw != null
+            ? double.tryParse(gastosRaw.toString()) ?? 0.0
+            : 0.0;
 
-      setState(() {
-        montoSaldoTotal = saldoTotal;
-        montoIngresos = ingresoTotal;
-        montoGastos = gastosTotal;
-      });
+        setState(() {
+          montoSaldoTotal = saldoTotal;
+          montoIngresos = ingresoTotal;
+          montoGastos = gastosTotal;
+        });
+      } catch (e) {
+        debugPrint('Error al procesar el resumen: $e');
+        // puedes mostrar un snackbar u otra alerta
+      }
+    } else {
+      debugPrint('Error de conexión: ${response.statusCode}');
     }
   }
 
@@ -127,10 +138,10 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-      title:Text(
-        getFechaFormateada(), // Ej: Lunes, 29 de Julio
-        style: TextStyle(fontSize: 16, color: Colors.grey),
-      ),
+        title: Text(
+          getFechaFormateada(), // Ej: Lunes, 29 de Julio
+          style: TextStyle(fontSize: 16, color: Colors.grey),
+        ),
         actions: [
           IconButton(
             icon: Icon(Icons.logout), // <- ícono correcto para cerrar sesión

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:app_gestion_gastos/api/services.dart';
-import 'package:app_gestion_gastos/pages/home.dart';
+import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -40,13 +40,16 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
   Future<void> _registrarUsuario() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _isLoading = true);
+    print(_nombreController.text.trim());
+    print(_emailController.text.trim());
+    print(_passwordController.text.trim());
 
     final res = await _service.register({
       'nombre': _nombreController.text.trim(),
       'email': _emailController.text.trim(),
       'password': _passwordController.text,
     });
-
+    print(res);
     setState(() => _isLoading = false);
 
     if (res.statusCode == 200 || res.statusCode == 201) {
@@ -74,7 +77,7 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const HomePage()),
+          MaterialPageRoute(builder: (_) => const DashboardPage()),
         );
         ScaffoldMessenger.of(
           context,

@@ -1,16 +1,13 @@
 import 'dart:convert';
+import 'package:app_gestion_gastos/clases/CategoriaPersonalizado.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:app_gestion_gastos/api/services.dart';
 
 class CategoriasPage extends StatefulWidget {
-
   final int idCard;
 
-  CategoriasPage({
-    super.key,
-    required this.idCard,
-  });
+  const CategoriasPage({super.key, required this.idCard});
   @override
   State<CategoriasPage> createState() => _CategoriasPageState();
 }
@@ -27,16 +24,16 @@ class _CategoriasPageState extends State<CategoriasPage> {
   final Color border = const Color(0xFFE6E1FF);
 
   // estado
-  bool isGasto = true;             // por defecto GASTO (como en tu app)
+  bool isGasto = true; // por defecto GASTO (como en tu app)
   String tipoMovimiento = 'GASTO';
 
   bool _cargando = false;
-  List<Map<String, dynamic>> _categorias = [];
+  final List<Map<String, dynamic>> _categorias = [];
 
   @override
   void initState() {
     super.initState();
-    _cargarCategorias();
+    _cargarCategorias(widget.idCard, tipoMovimiento);
   }
 
   @override
@@ -64,24 +61,24 @@ class _CategoriasPageState extends State<CategoriasPage> {
     );
   }
 
-  Future<void> _cargarCategorias() async {
-    try {
-      setState(() => _cargando = true);
-      final res = await service.listarCategoriaPersonalizado(context,widget.idCard); // GET /categorias
-      final data = json.decode(res.body) as List;
-      _categorias = data
-          .map((e) => {
-        "id": e["id"],
-        "nombre": e["nombre"],
-      })
+  List<CategoriaPersonalizado> categorias = [];
+  CategoriaPersonalizado? selectedCategoria;
+
+  Future<void> _cargarCategorias(int idCard, String tipo) async {
+    final res = await service.obtenerCategoriaPersonalizadoxTipo(
+      context,
+      idCard,
+      tipo,
+    );
+    if (res.statusCode == 200) {
+      final list = (jsonDecode(res.body) as List)
+          .map((e) => CategoriaPersonalizado.fromJson(e))
           .toList();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudieron cargar las categorías')),
-      );
-    } finally {
-      if (mounted) setState(() => _cargando = false);
+      setState(() {
+        categorias = list;
+        
+        selectedCategoria = categorias.isNotEmpty ? categorias.first : null;
+      });
     }
   }
 
@@ -91,8 +88,11 @@ class _CategoriasPageState extends State<CategoriasPage> {
     final nombre = _nombreCtrl.text.trim();
     try {
       setState(() => _cargando = true);
-      final res = await service.crearCategoria(context,
-          {"idCard":widget.idCard.toString(),"nombre": nombre, "tipoMovimiento":tipoMovimiento}); // POST /categorias
+      final res = await service.crearCategoria(context, {
+        "idCard": widget.idCard.toString(),
+        "nombre": nombre,
+        "tipoMovimiento": tipoMovimiento,
+      }); // POST /categorias
       if (res.statusCode == 200 || res.statusCode == 201) {
         // si el backend devuelve la categoría creada:
         final created = json.decode(res.body);
@@ -103,13 +103,14 @@ class _CategoriasPageState extends State<CategoriasPage> {
           });
         });
         _nombreCtrl.clear();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Categoría creada')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Categoría creada')));
+        _cargarCategorias(widget.idCard, tipoMovimiento);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${res.statusCode}')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: ${res.statusCode}')));
       }
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -143,7 +144,7 @@ class _CategoriasPageState extends State<CategoriasPage> {
       child: Scaffold(
         appBar: AppBar(title: const Text('Categorías')),
         body: RefreshIndicator(
-          onRefresh: _cargarCategorias,
+          onRefresh: () => _cargarCategorias(widget.idCard, tipoMovimiento),
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
@@ -154,7 +155,11 @@ class _CategoriasPageState extends State<CategoriasPage> {
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: border),
                   boxShadow: const [
-                    BoxShadow(color: Color(0x14000000), blurRadius: 14, offset: Offset(0, 6)),
+                    BoxShadow(
+                      color: Color(0x14000000),
+                      blurRadius: 14,
+                      offset: Offset(0, 6),
+                    ),
                   ],
                 ),
                 padding: const EdgeInsets.all(16),
@@ -176,7 +181,7 @@ class _CategoriasPageState extends State<CategoriasPage> {
                                 isGasto = true;
                                 tipoMovimiento = 'GASTO';
                               });
-                              _cargarCategorias();
+                              _cargarCategorias(widget.idCard, tipoMovimiento);
                             },
                           ),
                           const SizedBox(width: 10),
@@ -191,17 +196,24 @@ class _CategoriasPageState extends State<CategoriasPage> {
                                 isGasto = false;
                                 tipoMovimiento = 'INGRESO';
                               });
-                              _cargarCategorias();
+                              _cargarCategorias(widget.idCard, tipoMovimiento);
                             },
                           ),
                         ],
                       ),
-                      Text('Nueva categoría',
-                          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                      Text(
+                        'Nueva categoría',
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _nombreCtrl,
-                        decoration: _input('Nombre de categoría', icon: Icons.category_rounded),
+                        decoration: _input(
+                          'Nombre de categoría',
+                          icon: Icons.category_rounded,
+                        ),
                         textInputAction: TextInputAction.done,
                         onFieldSubmitted: (_) => _crearCategoria(),
                         validator: (v) => (v == null || v.trim().isEmpty)
@@ -234,13 +246,23 @@ class _CategoriasPageState extends State<CategoriasPage> {
               // Lista
               Row(
                 children: [
-                  Text('Listado', style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                  Text(
+                    'Listado $tipoMovimiento',
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   const SizedBox(width: 8),
-                  if (_cargando) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  if (_cargando)
+                    const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                 ],
               ),
               const SizedBox(height: 8),
-              if (_categorias.isEmpty && !_cargando)
+              if (categorias.isEmpty && !_cargando)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -251,20 +273,22 @@ class _CategoriasPageState extends State<CategoriasPage> {
                   child: const Text('Aún no hay categorías. ¡Crea la primera!'),
                 )
               else
-                ..._categorias.map((c) => Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: border),
-                    borderRadius: BorderRadius.circular(14),
+                ...categorias.map(
+                  (c) => Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: border),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(Icons.label_rounded),
+                      title: Text(c.nombre ?? ''),
+                      // Si luego quieres eliminar/editar:
+                      // trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () {}),
+                    ),
                   ),
-                  child: ListTile(
-                    leading: const Icon(Icons.label_rounded),
-                    title: Text(c['nombre'] ?? ''),
-                    // Si luego quieres eliminar/editar:
-                    // trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () {}),
-                  ),
-                )),
+                ),
             ],
           ),
         ),
@@ -272,6 +296,7 @@ class _CategoriasPageState extends State<CategoriasPage> {
     );
   }
 }
+
 // chip de segmento en tema claro
 class _SegmentChip extends StatelessWidget {
   const _SegmentChip({
@@ -311,9 +336,10 @@ class _SegmentChip extends StatelessWidget {
             children: [
               Icon(icon, size: 18, color: fg),
               const SizedBox(width: 8),
-              Text(label,
-                  style:
-                  TextStyle(color: fg, fontWeight: FontWeight.w700)),
+              Text(
+                label,
+                style: TextStyle(color: fg, fontWeight: FontWeight.w700),
+              ),
             ],
           ),
         ),
@@ -321,4 +347,3 @@ class _SegmentChip extends StatelessWidget {
     );
   }
 }
-

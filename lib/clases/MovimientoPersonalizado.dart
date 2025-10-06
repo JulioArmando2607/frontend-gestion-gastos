@@ -1,4 +1,3 @@
-import 'package:app_gestion_gastos/clases/Categoria.dart';
 
 class MovimientoPersonalizado {
   final String tipo;

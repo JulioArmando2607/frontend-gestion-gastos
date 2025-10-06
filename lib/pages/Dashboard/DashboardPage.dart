@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/pages/gastosDiarios.dart';
-import 'package:app_gestion_gastos/pages/gastosPersonalizados.dart';
+import 'package:app_gestion_gastos/pages/gastosPersonalizados/gastosPersonalizados.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -25,9 +25,7 @@ class _DashboardPageState extends State<DashboardPage> {
   int idUsuario = 0;
 
   late int _year;
-  int _month = DateTime
-      .now()
-      .month;
+  int _month = DateTime.now().month;
 
   // Demo: trae tus datos reales según (year, month)
   double gastoMes = 0;
@@ -38,9 +36,7 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     obtenerDatosDesdeToken();
-    _year = DateTime
-        .now()
-        .year;
+    _year = DateTime.now().year;
   }
 
   void _onPickMonth(int m) {
@@ -86,62 +82,80 @@ class _DashboardPageState extends State<DashboardPage> {
       if (!mounted) return;
       setState(() {
         nombre = data['nombre'] as String? ?? '';
-    // email = data['email'] as String? ?? '';
+        // email = data['email'] as String? ?? '';
       });
     }
   }
+
   String getFechaFormateada() {
     DateTime ahora = DateTime.now();
     final locale = 'es_ES'; // Español
     final formatter = DateFormat('EEEE, d \'de\' MMMM', locale);
     return toBeginningOfSentenceCase(formatter.format(ahora)) ?? '';
   }
+
   @override
   Widget build(BuildContext context) {
     final months = [
-      'Enero','Febrero','Marzo','Abril','Mayo','Junio',
-      'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
     ];
 
     return Scaffold(
       backgroundColor: bg,
-      appBar: AppBar(backgroundColor: bg, title:Text(
-        getFechaFormateada(), // Ej: Lunes, 29 de Julio
-        style: TextStyle(fontSize: 16, color: Colors.grey),
-      ),actions: [
-        IconButton(
-          icon: Icon(Icons.logout), // <- ícono correcto para cerrar sesión
-          tooltip: 'Cerrar sesión',
-          onPressed: () async {
-            // Confirmación opcional
-            final confirm = await showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: Text('Cerrar sesión'),
-                content: Text('¿Estás seguro de que deseas cerrar sesión?'),
-                actions: [
-                  TextButton(
-                    child: Text('Cancelar'),
-                    onPressed: () => Navigator.pop(context, false),
-                  ),
-                  TextButton(
-                    child: Text('Salir'),
-                    onPressed: () => Navigator.pop(context, true),
-                  ),
-                ],
-              ),
-            );
-
-            if (confirm == true) {
-              await storage.deleteAll(); // Borra todos los datos guardados
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => LoginPage()),
-              );
-            }
-          },
+      appBar: AppBar(
+        automaticallyImplyLeading:
+            false, // 👈 evita que Flutter ponga la flecha por defecto,
+        backgroundColor: bg,
+        title: Text(
+          getFechaFormateada(), // Ej: Lunes, 29 de Julio
+          style: TextStyle(fontSize: 16, color: Colors.grey),
         ),
-      ],),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout), // <- ícono correcto para cerrar sesión
+            tooltip: 'Cerrar sesión',
+            onPressed: () async {
+              // Confirmación opcional
+              final confirm = await showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text('Cerrar sesión'),
+                  content: Text('¿Estás seguro de que deseas cerrar sesión?'),
+                  actions: [
+                    TextButton(
+                      child: Text('Cancelar'),
+                      onPressed: () => Navigator.pop(context, false),
+                    ),
+                    TextButton(
+                      child: Text('Salir'),
+                      onPressed: () => Navigator.pop(context, true),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirm == true) {
+                await storage.deleteAll(); // Borra todos los datos guardados
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => LoginPage()),
+                );
+              }
+            },
+          ),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
@@ -196,12 +210,12 @@ class _DashboardPageState extends State<DashboardPage> {
                 icon: Icons.account_balance_wallet_rounded,
                 iconBg: const Color(0xFFFFEB6D),
                 title: 'Gastos Diarios',
-                onTap: () {   Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => Gastosdiarios(),
-                  ),
-                );},
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => Gastosdiarios()),
+                  );
+                },
               ),
               const SizedBox(height: 12),
               _NavTile(
@@ -215,7 +229,6 @@ class _DashboardPageState extends State<DashboardPage> {
                       builder: (context) => GastosPersonalizados(),
                     ),
                   );
-
                 },
               ),
               const SizedBox(height: 12),
@@ -228,7 +241,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
               const SizedBox(height: 28),
 
-            /*  // Botón grande "+"
+              /*  // Botón grande "+"
               Center(
                 child: GestureDetector(
                   onTap: () {/* crear nuevo */},
@@ -332,7 +345,9 @@ class _MonthScrollableState extends State<_MonthScrollable> {
               key: _keys[i], // clave para poder centrar este ítem
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
               decoration: BoxDecoration(
-                color: isSel ? widget.color.withOpacity(.9) : Colors.transparent,
+                color: isSel
+                    ? widget.color.withOpacity(.9)
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(24),
               ),
               child: Center(
@@ -372,7 +387,8 @@ class _YearDropdown extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(14),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
       ),
       child: DropdownButton<int>(
         value: year,
@@ -410,9 +426,13 @@ class _PillButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: color, borderRadius: BorderRadius.circular(22),
+          color: color,
+          borderRadius: BorderRadius.circular(22),
         ),
-        child: Text(label, style: TextStyle(color: textColor, fontWeight: FontWeight.w600)),
+        child: Text(
+          label,
+          style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+        ),
       ),
     );
   }
@@ -434,13 +454,15 @@ class _CircularStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 260, height: 260,
+      width: 260,
+      height: 260,
       child: Stack(
         alignment: Alignment.center,
         children: [
           // fondo
           SizedBox(
-            width: 220, height: 220,
+            width: 220,
+            height: 220,
             child: CustomPaint(
               painter: _RingPainter(
                 progress: 1,
@@ -451,7 +473,8 @@ class _CircularStat extends StatelessWidget {
           ),
           // progreso
           SizedBox(
-            width: 220, height: 220,
+            width: 220,
+            height: 220,
             child: TweenAnimationBuilder<double>(
               tween: Tween(begin: 0, end: progress.clamp(0, 1)),
               duration: const Duration(milliseconds: 700),
@@ -470,12 +493,19 @@ class _CircularStat extends StatelessWidget {
             children: [
               const Text('Gasto del Mes', style: TextStyle(fontSize: 18)),
               const SizedBox(height: 4),
-              Text('S/ ${gastoMes.toStringAsFixed(1)}',
-                  style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800)),
+              Text(
+                'S/ ${gastoMes.toStringAsFixed(1)}',
+                style: const TextStyle(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
               const SizedBox(height: 8),
-              Text('Proyección\nS/ ${proyeccionMes.toStringAsFixed(1)}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: primary, fontWeight: FontWeight.w600)),
+              Text(
+                'Proyección\nS/ ${proyeccionMes.toStringAsFixed(1)}',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: primary, fontWeight: FontWeight.w600),
+              ),
             ],
           ),
         ],
@@ -485,7 +515,11 @@ class _CircularStat extends StatelessWidget {
 }
 
 class _RingPainter extends CustomPainter {
-  _RingPainter({required this.progress, required this.color, required this.stroke});
+  _RingPainter({
+    required this.progress,
+    required this.color,
+    required this.stroke,
+  });
   final double progress; // 0..1
   final Color color;
   final double stroke;
@@ -500,7 +534,7 @@ class _RingPainter extends CustomPainter {
       ..strokeWidth = stroke
       ..strokeCap = StrokeCap.round
       ..color = color;
-    canvas.drawArc(rect.deflate(stroke/2), start, sweep, false, paint);
+    canvas.drawArc(rect.deflate(stroke / 2), start, sweep, false, paint);
   }
 
   @override
@@ -534,15 +568,22 @@ class _NavTile extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  shape: BoxShape.circle,
+                ),
                 child: Icon(icon, color: Colors.purple.shade700),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               const Icon(Icons.chevron_right_rounded, size: 28),

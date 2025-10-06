@@ -1,16 +1,13 @@
 import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/clases/Movimiento.dart';
-import 'package:app_gestion_gastos/pages/dashboard_page.dart';
+import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
 import 'package:app_gestion_gastos/pages/editarMovimiento.dart';
-import 'package:app_gestion_gastos/pages/home.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:app_gestion_gastos/pages/nuevoMoviento.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
 
@@ -355,7 +352,7 @@ class _MovementTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final amount = (positivo ? '+ ' : '- ') + 'S/ ${monto.toStringAsFixed(2)}';
+    final amount = '${positivo ? '+ ' : '- '}S/ ${monto.toStringAsFixed(2)}';
     final color = positivo ? Colors.green : Colors.red;
 
     return Card(

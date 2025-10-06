@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/clases/Categoria.dart';
 import 'package:app_gestion_gastos/clases/Movimiento.dart';
-import 'package:app_gestion_gastos/pages/dashboard_page.dart';
+import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -319,7 +319,7 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                                 Text('Categoría', style: TextStyle(color: Colors.grey.shade800, fontWeight: FontWeight.w600)),
                                 const SizedBox(height: 6),
                                 DropdownButtonFormField<Categoria>(
-                                  value: selectedCategoria,
+                                  initialValue: selectedCategoria,
                                   items: categorias
                                       .map((c) => DropdownMenuItem(value: c, child: Text(c.nombre)))
                                       .toList(),

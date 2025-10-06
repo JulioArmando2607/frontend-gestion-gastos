@@ -22,7 +22,7 @@ class ApiService {
     }
 
     final token = await storage.read(key: 'token');
-print(token);
+    print(token);
     // si no hay token o está vencido, salir a Login
     if (token == null || JwtDecoder.isExpired(token)) {
       await _logoutAndGoToLogin(context);
@@ -116,7 +116,11 @@ print(token);
     await _handle401(context, res);
     return res;
   }
-  Future<http.Response> obtenerCardPersonalizadoxId(BuildContext context, int id) async {
+
+  Future<http.Response> obtenerCardPersonalizadoxId(
+    BuildContext context,
+    int id,
+  ) async {
     final res = await http.get(
       Uri.parse('$baseUrl/gastos-personalizados/card-personalizado/$id'),
       headers: await _authHeaders(context),
@@ -125,6 +129,7 @@ print(token);
     await _handle401(context, res);
     return res;
   }
+
   Future<http.Response> movimientos(BuildContext context, body) async {
     final res = await http.post(
       Uri.parse('$baseUrl/movimientos'),
@@ -141,6 +146,18 @@ print(token);
   ) async {
     final res = await http.delete(
       Uri.parse('$baseUrl/movimientos/$id'),
+      headers: await _authHeaders(context),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+
+  Future<http.Response> eliminarMovimientoP(
+    BuildContext context,
+    String id,
+  ) async {
+    final res = await http.delete(
+      Uri.parse('$baseUrl/gastos-personalizados/eliminar-movimiento/$id'),
       headers: await _authHeaders(context),
     );
     await _handle401(context, res);
@@ -169,17 +186,16 @@ print(token);
   }
 
   Future<http.Response> obtenerCategoriaPersonalizadoxTipo(
-      BuildContext context,
-      int idCard,
-      String tipo,
-      ) async {
+    BuildContext context,
+    int idCard,
+    String tipo,
+  ) async {
     final res = await http.get(
-      Uri.parse('$baseUrl/gastos-personalizados/lista-categoria-personalizado-tipo/$idCard/$tipo'),
+      Uri.parse(
+        '$baseUrl/gastos-personalizados/lista-categoria-personalizado-tipo/$idCard/$tipo',
+      ),
       headers: await _authHeaders(context),
     );
-    print(      Uri.parse('$baseUrl/gastos-personalizados/lista-categoria-personalizado-tipo/$idCard/$tipo'),
-    );
-    print(res.body);
     await _handle401(context, res);
     return res;
   }
@@ -198,7 +214,10 @@ print(token);
     return res;
   }
 
-  Future crearCardPersonalizado(BuildContext context, Map<String, String?> body) async {
+  Future crearCardPersonalizado(
+    BuildContext context,
+    Map<String, String?> body,
+  ) async {
     final res = await http.post(
       Uri.parse('$baseUrl/gastos-personalizados/crear-gasto-personalizado'),
       headers: await _authHeaders(context, jsonBody: true),
@@ -217,18 +236,29 @@ print(token);
     await _handle401(context, res);
     return res;
   }
+
   Future<http.Response> listarCategoriaPersonalizado(
-      BuildContext context, int idCard) async {
+    BuildContext context,
+    int idCard,
+  ) async {
     final res = await http.get(
-      Uri.parse('$baseUrl/gastos-personalizados/lista-categoria-personalizado/${idCard}'),
+      Uri.parse(
+        '$baseUrl/gastos-personalizados/lista-categoria-personalizado/$idCard',
+      ),
       headers: await _authHeaders(context),
     );
     await _handle401(context, res);
     return res;
   }
-  Future<http.Response> obtenerMovimientosPersonalizados(BuildContext context,  int idCard) async {
+
+  Future<http.Response> obtenerMovimientosPersonalizados(
+    BuildContext context,
+    int idCard,
+  ) async {
     final res = await http.get(
-      Uri.parse('$baseUrl/gastos-personalizados/lista-movimientos-personalizado/$idCard'),
+      Uri.parse(
+        '$baseUrl/gastos-personalizados/lista-movimientos-personalizado/$idCard',
+      ),
       headers: await _authHeaders(context),
     );
     print(res.body);
@@ -246,5 +276,29 @@ print(token);
     return res;
   }
 
+  Future<http.Response> listarReporteCard(
+    BuildContext context,
+    int idCard,
+  ) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/gastos-personalizados/listar-reporte-card/$idCard'),
+      headers: await _authHeaders(context),
+    );
+    await _handle401(context, res);
+    return res;
+  }
 
+    Future<http.Response> obtenerMovimientoPersonalizado(
+    BuildContext context,
+    int idMovimiento, 
+  ) async {
+    final res = await http.get(
+      Uri.parse(
+        '$baseUrl/gastos-personalizados/obtener-movimiento-personalizado/$idMovimiento',
+      ),
+      headers: await _authHeaders(context),
+    );
+    await _handle401(context, res);
+    return res;
+  }
 }
