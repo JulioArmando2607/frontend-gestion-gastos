@@ -4,6 +4,7 @@ import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/pages/gastosDiarios.dart';
 import 'package:app_gestion_gastos/pages/gastosPersonalizados/gastosPersonalizados.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
+import 'package:app_gestion_gastos/pages/proyeccion/ProyeccionMensualPage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
@@ -37,6 +38,7 @@ class _DashboardPageState extends State<DashboardPage> {
     super.initState();
     obtenerDatosDesdeToken();
     _year = DateTime.now().year;
+    _fetchData();
   }
 
   void _onPickMonth(int m) {
@@ -49,11 +51,48 @@ class _DashboardPageState extends State<DashboardPage> {
     _fetchData();
   }
 
-  void _fetchData() {
-    // TODO: llama a tu API con (_year, _month)
-    // y asigna gastoMes, proyeccionMes, avance
-    // setState(() {});
+  void _fetchData() async {
+    try {
+      // Assuming `service` provides the method to fetch data from API
+      final response = await service.getDashboardData(
+        context,
+        _year,
+        _month,
+      ); // Adjust the service method as needed
+
+      if (response.statusCode == 200) {
+        print(response.body);
+        final List<dynamic> data = jsonDecode(response.body);
+
+        // Process and update dashboard data
+        double totalGasto = 0;
+        double totalProyeccion = 0;
+        if (data.length > 0) {
+          for (var item in data) {
+            totalGasto += item['gastoTotal'] ?? 0;
+            totalProyeccion +=
+                item['proyeccionTotal'] ?? 0; // If you have this field
+          }
+
+          setState(() {
+            gastoMes = totalGasto;
+            proyeccionMes = totalProyeccion;
+            avance = gastoMes / proyeccionMes; // Update this formula as needed
+          });
+        } else {
+          setState(() {
+            gastoMes = 0;
+            proyeccionMes = 0;
+            avance = 0; // Update this formula as needed
+          });
+        }
+      }
+    } catch (error) {
+      print("Error fetching data: $error");
+      // Handle the error
+    }
   }
+
   void obtenerDatosDesdeToken() async {
     String? token = await storage.read(key: 'token');
 
@@ -236,7 +275,14 @@ class _DashboardPageState extends State<DashboardPage> {
                 icon: Icons.calendar_month,
                 iconBg: const Color(0xFFD8D2FE),
                 title: 'Proyeccion Mensual',
-                onTap: () {},
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ProyeccionMensualPage(),
+                    ),
+                  );
+                },
               ),
 
               const SizedBox(height: 28),
@@ -289,35 +335,45 @@ class _MonthScrollable extends StatefulWidget {
 }
 
 class _MonthScrollableState extends State<_MonthScrollable> {
-  final _keys = List.generate(12, (_) => GlobalKey());
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
-    // Cuando termina el primer build, centra el mes actual
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToSelected();
+    });
   }
 
   @override
   void didUpdateWidget(covariant _MonthScrollable oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.selected != widget.selected) {
-      // Si cambia el mes seleccionado desde fuera, vuelve a centrarlo
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
+      _scrollToSelected();
     }
   }
 
   void _scrollToSelected() {
-    final idx = (widget.selected - 1).clamp(0, _keys.length - 1);
-    final ctx = _keys[idx].currentContext;
-    if (ctx != null) {
-      Scrollable.ensureVisible(
-        ctx,
-        alignment: 0.5, // 0 = inicio, 1 = final, 0.5 = centrado
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
-    }
+    if (!_scrollController.hasClients) return;
+
+    final idx = (widget.selected - 1).clamp(0, widget.months.length - 1);
+    // Cada item tiene aproximadamente 100px de ancho (ajusta según tu diseño)
+    const itemWidth = 100.0;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final targetPosition =
+        (idx * itemWidth) - (screenWidth / 2) + (itemWidth / 2);
+
+    _scrollController.animateTo(
+      targetPosition.clamp(0.0, _scrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   @override
@@ -329,6 +385,7 @@ class _MonthScrollableState extends State<_MonthScrollable> {
         borderRadius: BorderRadius.circular(28),
       ),
       child: ListView.separated(
+        controller: _scrollController, // ⭐ IMPORTANTE
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         itemCount: widget.months.length,
@@ -336,13 +393,8 @@ class _MonthScrollableState extends State<_MonthScrollable> {
         itemBuilder: (_, i) {
           final isSel = widget.selected == i + 1;
           return GestureDetector(
-            onTap: () {
-              widget.onSelected(i + 1);
-              // también centra al tocar
-              _scrollToSelected();
-            },
+            onTap: () => widget.onSelected(i + 1),
             child: Container(
-              key: _keys[i], // clave para poder centrar este ítem
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
               decoration: BoxDecoration(
                 color: isSel

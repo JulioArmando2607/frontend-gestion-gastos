@@ -301,4 +301,19 @@ class ApiService {
     await _handle401(context, res);
     return res;
   }
+
+    Future<http.Response> getDashboardData(
+    BuildContext context,
+    int anio, int idUsuario, 
+  ) async {
+    final res = await http.get(
+      Uri.parse(
+        '$baseUrl/movimientos/listar-dashboard/$anio/$idUsuario',
+      ),
+      headers: await _authHeaders(context),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+  
 }
