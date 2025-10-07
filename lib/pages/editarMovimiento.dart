@@ -19,8 +19,8 @@ class EditarMovimientoPage extends StatefulWidget {
 
 class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
   // Estado
-  late bool isGasto;                  // true => GASTO
-  late String tipoMovimiento;         // 'GASTO' | 'INGRESO'
+  late bool isGasto; // true => GASTO
+  late String tipoMovimiento; // 'GASTO' | 'INGRESO'
   late DateTime selectedDate;
 
   final _formKey = GlobalKey<FormState>();
@@ -70,8 +70,9 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
         categorias = list;
         // Selecciona la categoría del movimiento o la primera
         selectedCategoria = categorias.firstWhere(
-              (c) => c.id == widget.movimiento.categoria.id,
-          orElse: () => categorias.isNotEmpty ? categorias.first : null as Categoria,
+          (c) => c.id == widget.movimiento.categoria.id,
+          orElse: () =>
+              categorias.isNotEmpty ? categorias.first : null as Categoria,
         );
       });
     } else {
@@ -98,7 +99,11 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
       "categoria": {"id": selectedCategoria!.id},
     };
 
-    final res = await service.editarMovimiento(context, widget.movimiento.id, body);
+    final res = await service.editarMovimiento(
+      context,
+      widget.movimiento.id,
+      body,
+    );
 
     if (!mounted) return;
     if (res.statusCode == 200) {
@@ -109,9 +114,9 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
     } else {
       debugPrint('Error actualizar: ${res.statusCode}');
       debugPrint('Body: ${res.body}');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo actualizar')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No se pudo actualizar')));
     }
   }
 
@@ -159,7 +164,6 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
       ),
     );
 
-
     final size = MediaQuery.of(context).size;
     final sheetHeight = size.height * 0.92;
 
@@ -186,15 +190,24 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                     title: const Text('Cerrar sesión'),
                     content: const Text('¿Deseas salir de tu cuenta?'),
                     actions: [
-                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-                      TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Salir')),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancelar'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Salir'),
+                      ),
                     ],
                   ),
                 );
                 if (confirm == true) {
                   await storage.deleteAll();
                   if (!mounted) return;
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginPage()));
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginPage()),
+                  );
                 }
               },
             ),
@@ -217,9 +230,15 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                   width: double.infinity,
                   decoration: BoxDecoration(
                     color: sheet,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(28),
+                    ),
                     boxShadow: const [
-                      BoxShadow(color: Color(0x22000000), blurRadius: 24, offset: Offset(0, -10)),
+                      BoxShadow(
+                        color: Color(0x22000000),
+                        blurRadius: 24,
+                        offset: Offset(0, -10),
+                      ),
                     ],
                   ),
                   child: SafeArea(
@@ -237,7 +256,8 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                                 // handle
                                 Center(
                                   child: Container(
-                                    width: 48, height: 5,
+                                    width: 48,
+                                    height: 5,
                                     margin: const EdgeInsets.only(bottom: 16),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFEDE8FF),
@@ -251,14 +271,18 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                                     Expanded(
                                       child: Text(
                                         'Editar movimiento',
-                                        style: t.textTheme.headlineSmall?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                        ),
+                                        style: t.textTheme.headlineSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                            ),
                                       ),
                                     ),
                                     IconButton(
                                       onPressed: () => Navigator.pop(context),
-                                      icon: Icon(Icons.close_rounded, color: Colors.grey.shade600),
+                                      icon: Icon(
+                                        Icons.close_rounded,
+                                        color: Colors.grey.shade600,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -301,44 +325,90 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                                 const SizedBox(height: 18),
 
                                 // Monto
-                                Text('Monto', style: TextStyle(color: Colors.grey.shade800, fontWeight: FontWeight.w600)),
+                                Text(
+                                  'Monto',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade800,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                                 const SizedBox(height: 6),
                                 TextFormField(
                                   controller: montoController,
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  decoration: _lightInput('S/ 0.00', prefixIcon: Icons.attach_money_rounded),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  decoration: _lightInput(
+                                    'S/ 0.00',
+                                    prefixIcon: Icons.attach_money_rounded,
+                                  ),
                                   validator: (v) {
-                                    final d = double.tryParse((v ?? '').replaceAll(',', '.'));
-                                    if (d == null || d <= 0) return 'Ingresa un monto válido';
+                                    final d = double.tryParse(
+                                      (v ?? '').replaceAll(',', '.'),
+                                    );
+                                    if (d == null || d <= 0)
+                                      return 'Ingresa un monto válido';
                                     return null;
                                   },
                                 ),
                                 const SizedBox(height: 14),
 
                                 // Categoría
-                                Text('Categoría', style: TextStyle(color: Colors.grey.shade800, fontWeight: FontWeight.w600)),
+                                Text(
+                                  'Categoría',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade800,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                                 const SizedBox(height: 6),
                                 DropdownButtonFormField<Categoria>(
                                   initialValue: selectedCategoria,
                                   items: categorias
-                                      .map((c) => DropdownMenuItem(value: c, child: Text(c.nombre)))
+                                      .map(
+                                        (c) => DropdownMenuItem(
+                                          value: c,
+                                          child: Text(c.nombre),
+                                        ),
+                                      )
                                       .toList(),
-                                  onChanged: (v) => setState(() => selectedCategoria = v),
-                                  decoration: _lightInput('Selecciona una categoría', prefixIcon: Icons.category_rounded),
-                                  validator: (v) => v == null ? 'Selecciona una categoría' : null,
+                                  onChanged: (v) =>
+                                      setState(() => selectedCategoria = v),
+                                  decoration: _lightInput(
+                                    'Selecciona una categoría',
+                                    prefixIcon: Icons.category_rounded,
+                                  ),
+                                  validator: (v) => v == null
+                                      ? 'Selecciona una categoría'
+                                      : null,
                                 ),
                                 const SizedBox(height: 14),
 
                                 // Fecha
-                                Text('Fecha', style: TextStyle(color: Colors.grey.shade800, fontWeight: FontWeight.w600)),
+                                Text(
+                                  'Fecha',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade800,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                                 const SizedBox(height: 6),
                                 TextFormField(
                                   readOnly: true,
                                   controller: TextEditingController(
-                                    text: '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
+                                    text:
+                                        '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
                                   ),
-                                  decoration: _lightInput('Selecciona la fecha', prefixIcon: Icons.event_rounded)
-                                      .copyWith(suffixIcon: const Icon(Icons.expand_more_rounded)),
+                                  decoration:
+                                      _lightInput(
+                                        'Selecciona la fecha',
+                                        prefixIcon: Icons.event_rounded,
+                                      ).copyWith(
+                                        suffixIcon: const Icon(
+                                          Icons.expand_more_rounded,
+                                        ),
+                                      ),
                                   onTap: () async {
                                     final picked = await showDatePicker(
                                       context: context,
@@ -348,24 +418,36 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                                       builder: (_, child) {
                                         return Theme(
                                           data: Theme.of(context).copyWith(
-                                            colorScheme: ColorScheme.light(primary: primary),
+                                            colorScheme: ColorScheme.light(
+                                              primary: primary,
+                                            ),
                                           ),
                                           child: child!,
                                         );
                                       },
                                     );
-                                    if (picked != null) setState(() => selectedDate = picked);
+                                    if (picked != null)
+                                      setState(() => selectedDate = picked);
                                   },
                                 ),
                                 const SizedBox(height: 14),
 
                                 // Nota
-                                Text('Nota (opcional)', style: TextStyle(color: Colors.grey.shade800, fontWeight: FontWeight.w600)),
+                                Text(
+                                  'Nota (opcional)',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade800,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                                 const SizedBox(height: 6),
                                 TextFormField(
                                   controller: descripcionController,
                                   maxLines: 3,
-                                  decoration: _lightInput('Añade una nota…', prefixIcon: Icons.notes_rounded),
+                                  decoration: _lightInput(
+                                    'Añade una nota…',
+                                    prefixIcon: Icons.notes_rounded,
+                                  ),
                                 ),
                               ],
                             ),
@@ -374,17 +456,24 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
 
                         // Botones fijos abajo
                         Positioned(
-                          left: 20, right: 20, bottom: 20,
+                          left: 20,
+                          right: 20,
+                          bottom: 20,
                           child: Row(
                             children: [
                               Expanded(
                                 child: OutlinedButton(
-                                  onPressed: () => Navigator.pop(context, false),
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: primary,
                                     side: BorderSide(color: primary),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
                                   ),
                                   child: const Text('Cancelar'),
                                 ),
@@ -396,11 +485,20 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: primary,
                                     foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 14,
+                                    ),
                                     elevation: 0,
                                   ),
-                                  child: const Text('Actualizar', style: TextStyle(fontWeight: FontWeight.w700)),
+                                  child: const Text(
+                                    'Actualizar',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -458,7 +556,10 @@ class _SegmentChip extends StatelessWidget {
             children: [
               Icon(icon, size: 18, color: fg),
               const SizedBox(width: 8),
-              Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w700)),
+              Text(
+                label,
+                style: TextStyle(color: fg, fontWeight: FontWeight.w700),
+              ),
             ],
           ),
         ),
