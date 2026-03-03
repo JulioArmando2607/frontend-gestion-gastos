@@ -67,7 +67,7 @@ class _DashboardPageState extends State<DashboardPage> {
         // Process and update dashboard data
         double totalGasto = 0;
         double totalProyeccion = 0;
-        if (data.length > 0) {
+        if (data.isNotEmpty) {
           for (var item in data) {
             totalGasto += item['gastoTotal'] ?? 0;
             totalProyeccion +=

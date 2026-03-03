@@ -1,6 +1,12 @@
+import 'dart:convert';
+
 import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:app_gestion_gastos/api/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:intl/intl.dart';
 
 class ProyeccionMensualPage extends StatefulWidget {
   const ProyeccionMensualPage({super.key});
@@ -10,39 +16,579 @@ class ProyeccionMensualPage extends StatefulWidget {
 }
 
 class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
-  final primary = const Color(0xFF6C55F9);
-  final bg = const Color(0xFFF8F3FF);
+  // Constantes
+  static const Color primary = Color(0xFF6C55F9);
+  static const Color bg = Color(0xFFF8F3FF);
+  static const int maxYearsRange = 7;
+  static const int yearOffset = 3;
+  static const double minIngreso = 0.0;
 
+  // Servicios
+  final ApiService service = ApiService();
+  final storage = const FlutterSecureStorage();
+  final formatter = NumberFormat.currency(symbol: 'S/ ', decimalDigits: 2);
+
+  // Estado
   int yearActual = DateTime.now().year;
   int mesActual = DateTime.now().month;
-  int ingresoMes = 2000;
+  double ingresoMes = 0.0;
+  int idUsuario = 0;
+  List<Map<String, dynamic>> categorias = [];
+  bool isLoading = false;
+  bool proyeccionCerrada = false;
 
-  // Categorías de ejemplo
-  List<Map<String, dynamic>> categorias = [
-    {'nombre': 'Prestamo efectivo', 'monto': 0, 'color': Colors.grey.shade300},
-    {'nombre': 'Pasajes', 'monto': 0, 'color': Colors.grey.shade300},
-    {'nombre': 'Alimentos casa', 'monto': 0, 'color': Colors.grey.shade300},
-    {'nombre': 'Prestamo colegio', 'monto': 0, 'color': Colors.grey.shade300},
-    {'nombre': 'Pago Falabella', 'monto': 0, 'color': Colors.yellow.shade300},
-    {'nombre': 'Pago Oh', 'monto': 0, 'color': Colors.orange.shade300},
-    {'nombre': 'Pago Movistar', 'monto': 0, 'color': Colors.green.shade400},
-    {'nombre': 'Servicios Basicos', 'monto': 0, 'color': Colors.grey.shade300},
-    {'nombre': 'Teléfono', 'monto': 0, 'color': Colors.yellow.shade200},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _inicializar();
+  }
 
-  void _editarMonto(int index) async {
-    final controller = TextEditingController(
-      text: categorias[index]['monto'].toString(),
+  Future<void> _inicializar() async {
+    await obtenerDatosDesdeToken();
+  }
+
+  Future<void> obtenerDatosDesdeToken() async {
+    setState(() => isLoading = true);
+
+    try {
+      String? token = await storage.read(key: 'token');
+
+      if (token == null) {
+        _mostrarError('No se encontró el token de autenticación');
+        return;
+      }
+
+      Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+
+      setState(() {
+        idUsuario = decodedToken['id'] ?? 0;
+      });
+
+      if (idUsuario == 0) {
+        _mostrarError('ID de usuario inválido');
+        return;
+      }
+
+      await _cargarDetalleProyeccion(idUsuario, yearActual, mesActual);
+      await _cargarCategorias(idUsuario, yearActual, mesActual);
+    } catch (e) {
+      _mostrarError('Error al obtener datos del usuario: $e');
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _insertUpdateProyeccion(
+    int idUsuario,
+    int anio,
+    int mes,
+    double ingreso, {
+    double? totalGasto,
+    double? ahorroEstimado,
+  }) async {
+    if (proyeccionCerrada) {
+      _mostrarError('Esta proyección está cerrada');
+      return;
+    }
+
+    if (ingreso < minIngreso) {
+      _mostrarError(
+        'El ingreso debe ser mayor o igual a ${formatter.format(minIngreso)}',
+      );
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      final double totalGastoFinal =
+          totalGasto ??
+          categorias.fold(0.0, (sum, cat) => sum + (cat['monto'] as double));
+      final double ahorroEstimadoFinal =
+          ahorroEstimado ?? (ingreso - totalGastoFinal);
+
+      final res = await service.insertUpdateProyeccion(
+        context,
+        idUsuario,
+        anio,
+        mes,
+        ingreso,
+        totalGastoFinal,
+        ahorroEstimadoFinal,
+      );
+
+      if (res.statusCode == 200) {
+        final resp = jsonDecode(res.body);
+        debugPrint('Proyección actualizada: $resp');
+        await _cargarDetalleProyeccion(idUsuario, anio, mes);
+        await _cargarCategorias(idUsuario, anio, mes);
+      } else {
+        throw Exception('Error ${res.statusCode}: ${res.body}');
+      }
+    } catch (e) {
+      _mostrarError('Error al actualizar proyección: $e');
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _cargarDetalleProyeccion(
+    int idUsuario,
+    int anio,
+    int mes,
+  ) async {
+    try {
+      final res = await service.getObtenerDetalleProyeccion(
+        context,
+        idUsuario,
+        anio,
+        mes,
+      );
+
+      if (res.statusCode == 200) {
+        final resp = jsonDecode(res.body);
+
+        if (resp['response'] != null) {
+          setState(() {
+            ingresoMes = (resp['response']['ingresoMensual'] ?? 0.0).toDouble();
+            proyeccionCerrada = resp['response']['cerrado'] ?? false;
+          });
+        } else {
+          setState(() {
+            ingresoMes = 0.0;
+            proyeccionCerrada = false;
+          });
+        }
+      } else {
+        throw Exception('Error ${res.statusCode}');
+      }
+    } catch (e) {
+      _mostrarError('Error al cargar detalle de proyección: $e');
+    }
+  }
+
+  Future<void> _cargarCategorias(int idUsuario, int anio, int mes) async {
+    setState(() => isLoading = true);
+
+    try {
+      final res = await service.getObtenerCategoriasProyeccion(
+        context,
+        idUsuario,
+        anio,
+        mes,
+      );
+
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final decoded = jsonDecode(res.body);
+
+        if (decoded is! List) {
+          throw Exception('Formato inesperado de respuesta');
+        }
+
+        final nuevaLista = decoded.map<Map<String, dynamic>>((raw) {
+          final item = (raw is Map)
+              ? Map<String, dynamic>.from(raw)
+              : <String, dynamic>{};
+
+          return {
+            'categoriaId': item['categoriaId'],
+            'proyeccionId': item['proyeccionId'],
+            'ordenCategoria': item['ordenCategoria'],
+            'estado': item['estado'],
+            'nombre': (item['nombreCategoria'] ?? '') as String,
+            'monto': _toDouble(item['montoCategoria']),
+            'totalGasto': _toDouble(item['totalGasto']),
+            'ahorroEstimado': _toDouble(item['ahorroEstimado']),
+            'ingresoMensual': _toDouble(item['ingresoMensual']),
+            'color': _parseHexColor(item['colorCategoria']),
+            'mes': item['mes'],
+            'anio': item['anio'],
+          };
+        }).toList();
+
+        if (mounted) {
+          setState(() => categorias = nuevaLista);
+        }
+      } else {
+        throw Exception('Error ${res.statusCode}');
+      }
+    } catch (e) {
+      _mostrarError('Error al cargar categorías: $e');
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
+  double _toDouble(dynamic v) {
+    if (v == null) return 0.0;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? 0.0;
+    return 0.0;
+  }
+
+  Color _parseHexColor(dynamic v) {
+    try {
+      if (v is! String || v.trim().isEmpty) return Colors.grey.shade300;
+
+      final hex = v.trim().replaceAll('#', '').toUpperCase();
+      final buffer = StringBuffer();
+
+      if (hex.length == 6) buffer.write('FF');
+      buffer.write(hex);
+
+      if (buffer.length != 8) return Colors.grey.shade300;
+
+      return Color(int.parse(buffer.toString(), radix: 16));
+    } catch (_) {
+      return Colors.grey.shade300;
+    }
+  }
+
+  Future<void> _editarMonto(int index) async {
+    if (proyeccionCerrada) {
+      _mostrarError('Esta proyección está cerrada');
+      return;
+    }
+
+    final resultado = await _mostrarDialogMonto(
+      titulo: 'Editar ${categorias[index]['nombre']}',
+      valorInicial: categorias[index]['monto'],
     );
 
-    final result = await showDialog<int>(
+    if (resultado != null && resultado > 0) {
+      final body = {
+        "anio": yearActual,
+        "nombreCategoria": categorias[index]['nombre'],
+        "mes": mesActual,
+        "idCategoria": categorias[index]['categoriaId'],
+        "montoCategoria": resultado,
+        "color": categorias[index]['color'],
+      };
+
+      await _guardarCategoriaEnAPI(body);
+    }
+  }
+
+  Future<void> _crearCategoria() async {
+    if (proyeccionCerrada) {
+      _mostrarError('Esta proyección está cerrada');
+      return;
+    }
+
+    final nombreController = TextEditingController();
+    final montoController = TextEditingController(text: '0');
+    Color colorSeleccionado = Colors.grey.shade300;
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Nueva Categoría'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nombreController,
+                textCapitalization: TextCapitalization.words,
+                decoration: InputDecoration(
+                  labelText: 'Nombre de categoría',
+                  prefixIcon: const Icon(Icons.category),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                autofocus: true,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: montoController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                ],
+                decoration: InputDecoration(
+                  labelText: 'Monto',
+                  prefixText: 'S/ ',
+                  prefixIcon: const Icon(Icons.attach_money),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Text(
+                    'Color:',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: () async {
+                      final colors = [
+                        Colors.grey.shade300,
+                        Colors.yellow.shade300,
+                        Colors.orange.shade300,
+                        Colors.green.shade400,
+                        Colors.blue.shade300,
+                        Colors.purple.shade300,
+                        Colors.red.shade300,
+                        Colors.pink.shade300,
+                        Colors.teal.shade300,
+                      ];
+
+                      await showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          title: const Text('Seleccionar Color'),
+                          content: Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: colors.map((color) {
+                              return GestureDetector(
+                                onTap: () {
+                                  setStateDialog(
+                                    () => colorSeleccionado = color,
+                                  );
+                                  Navigator.pop(ctx);
+                                },
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.black26,
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: colorSeleccionado,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.black26, width: 2),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () {
+                final nombre = nombreController.text.trim();
+                if (nombre.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('El nombre es requerido')),
+                  );
+                  return;
+                }
+
+                Navigator.pop(context, {
+                  'nombre': nombre,
+                  'monto': double.tryParse(montoController.text) ?? 0.0,
+                  'color': colorSeleccionado,
+                });
+              },
+              child: const Text('Crear'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null) {
+      await _guardarCategoriaEnAPI(result);
+    }
+  }
+
+  Future<void> _guardarCategoriaEnAPI(Map<String, dynamic> categoria) async {
+    setState(() => isLoading = true);
+
+    try {
+      String colorHex =
+          '#${categoria['color'].value.toRadixString(16).substring(2).toUpperCase()}';
+
+      final body = {
+        'idCategoria': categoria["idCategoria"],
+        'nombreCategoria': categoria['nombre'] ?? categoria['nombreCategoria'],
+        'montoCategoria': categoria['monto'] ?? categoria["montoCategoria"],
+        'colorCategoria': colorHex,
+        'anio': yearActual,
+        'mes': mesActual,
+        'ingresoMensual': ingresoMes,
+      };
+
+      final res = await service.guardarProyeccionCategoria(
+        context,
+        idUsuario,
+        body,
+      );
+
+      if (res.statusCode == 200) {
+        _mostrarExito('Categoría guardada exitosamente');
+        await _cargarCategorias(idUsuario, yearActual, mesActual);
+      } else {
+        throw Exception('Error ${res.statusCode}');
+      }
+    } catch (e) {
+      _mostrarError('Error al guardar la categoría: $e');
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _eliminarCategoria(int index) async {
+    if (proyeccionCerrada) {
+      _mostrarError('Esta proyección está cerrada');
+      return;
+    }
+
+    final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Editar ${categorias[index]['nombre']}'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Confirmar eliminación'),
+        content: Text(
+          '¿Deseas eliminar la categoría "${categorias[index]['nombre']}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      setState(() => isLoading = true);
+
+      try {
+        // Aquí deberías llamar al servicio de eliminación
+        // final res = await service.eliminarCategoria(context, categorias[index]['categoriaId']);
+
+        // Por ahora solo elimino localmente
+        setState(() => categorias.removeAt(index));
+        _mostrarExito('Categoría eliminada');
+
+        await _cargarCategorias(idUsuario, yearActual, mesActual);
+      } catch (e) {
+        _mostrarError('Error al eliminar: $e');
+      } finally {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _cerrarProyeccion() async {
+    if (proyeccionCerrada) {
+      _mostrarError('Esta proyección ya está cerrada');
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cerrar Proyección'),
+        content: const Text(
+          '¿Estás seguro de cerrar esta proyección?\n\n'
+          'No podrás actualizar ni crear nuevas categorías después.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => isLoading = true);
+
+      try {
+        // Aquí deberías llamar al servicio para cerrar la proyección
+        // final res = await service.cerrarProyeccion(context, idUsuario, yearActual, mesActual);
+
+        setState(() => proyeccionCerrada = true);
+        _mostrarExito('Proyección cerrada exitosamente');
+      } catch (e) {
+        _mostrarError('Error al cerrar proyección: $e');
+      } finally {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
+  Future<double?> _mostrarDialogMonto({
+    required String titulo,
+    required double valorInicial,
+  }) async {
+    final controller = TextEditingController(
+      text: valorInicial.toStringAsFixed(2),
+    );
+
+    return showDialog<double>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(titulo),
         content: TextField(
           controller: controller,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+          ],
           decoration: InputDecoration(
             labelText: 'Monto',
             prefixText: 'S/ ',
@@ -53,7 +599,7 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancelar'),
+            child: const Text('Cancelar'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -61,136 +607,45 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
               foregroundColor: Colors.white,
             ),
             onPressed: () {
-              final monto = int.tryParse(controller.text) ?? 0;
+              final monto = double.tryParse(controller.text) ?? 0.0;
               Navigator.pop(context, monto);
             },
-            child: Text('Guardar'),
+            child: const Text('Guardar'),
           ),
         ],
       ),
     );
-
-    if (result != null) {
-      setState(() {
-        categorias[index]['monto'] = result;
-      });
-    }
   }
 
-  void _crearCategoria() async {
-    final nombreController = TextEditingController();
-    final montoController = TextEditingController(text: '0');
-
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Nueva Categoría'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nombreController,
-              decoration: InputDecoration(
-                labelText: 'Nombre de categoría',
-                prefixIcon: Icon(Icons.category),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              autofocus: true,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: montoController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                labelText: 'Monto',
-                prefixText: 'S/ ',
-                prefixIcon: Icon(Icons.attach_money),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primary,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              if (nombreController.text.isNotEmpty) {
-                Navigator.pop(context, {
-                  'nombre': nombreController.text,
-                  'monto': int.tryParse(montoController.text) ?? 0,
-                });
-              }
-            },
-            child: Text('Crear'),
-          ),
-        ],
+  void _mostrarError(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
       ),
     );
-
-    if (result != null) {
-      setState(() {
-        categorias.add({
-          'nombre': result['nombre'],
-          'monto': result['monto'],
-          'color': Colors.grey.shade300,
-        });
-      });
-    }
   }
 
-  void _cerrarProyeccion() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Cerrar Proyección'),
-        content: Text(
-          '¿Estás seguro de cerrar esta proyección?\n\nNo podrás actualizar ni crear nuevas categorías después.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancelar'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Cerrar'),
-          ),
-        ],
+  void _mostrarExito(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
       ),
     );
-
-    if (confirm == true) {
-      // Aquí guardarías la proyección en tu API
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Proyección cerrada exitosamente'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      // Navigator.pop(context); // Opcional: volver al dashboard
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final total = categorias.fold(0, (sum, cat) => sum + (cat['monto'] as int));
-    final ahorroEstimado = ingresoMes - total;
+    final double total = categorias.fold(
+      0.0,
+      (sum, cat) => sum + (cat['monto'] as double),
+    );
+    final double ahorroEstimado = ingresoMes - total;
 
     return Scaffold(
       backgroundColor: bg,
@@ -204,157 +659,253 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
           ),
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
         ),
-        title: Text(
+        title: const Text(
           'Proyección Mensual',
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: primary,
-        onPressed: _crearCategoria,
-        icon: Icon(Icons.add),
-        label: Text('Nueva Categoría'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Selectores de Año y Mes
-            _HeaderCard(
-              yearActual: yearActual,
-              mesActual: mesActual,
-              ingresoMes: ingresoMes,
-              primary: primary,
-              onYearChanged: (y) => setState(() => yearActual = y),
-              onMesChanged: (m) => setState(() => mesActual = m),
-              onIngresoChanged: (i) => setState(() => ingresoMes = i),
+      floatingActionButton: proyeccionCerrada
+          ? null
+          : FloatingActionButton.extended(
+              backgroundColor: primary,
+              onPressed: _crearCategoria,
+              icon: const Icon(Icons.add),
+              label: const Text('Nueva Categoría'),
             ),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (proyeccionCerrada)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.lock, color: Colors.orange.shade700),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Proyección cerrada - No se pueden hacer cambios',
+                            style: TextStyle(
+                              color: Colors.orange.shade700,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
-            const SizedBox(height: 16),
+                _HeaderCard(
+                  yearActual: yearActual,
+                  mesActual: mesActual,
+                  ingresoMes: ingresoMes,
+                  primary: primary,
+                  formatter: formatter,
+                  bloqueado: proyeccionCerrada,
+                  onYearChanged: (y) {
+                    setState(() => yearActual = y);
+                    _cargarDetalleProyeccion(idUsuario, yearActual, mesActual);
+                    _cargarCategorias(idUsuario, yearActual, mesActual);
+                  },
+                  onMesChanged: (m) {
+                    setState(() => mesActual = m);
+                    _cargarDetalleProyeccion(idUsuario, yearActual, m);
+                    _cargarCategorias(idUsuario, yearActual, m);
+                  },
+                  onIngresoChanged: (i) {
+                    setState(() => ingresoMes = i);
+                    _insertUpdateProyeccion(
+                      idUsuario,
+                      yearActual,
+                      mesActual,
+                      ingresoMes,
+                    );
+                  },
+                ),
 
-            // Nota informativa
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: primary, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'El ingreso debe actualizarse cada mes según corresponda',
+                const SizedBox(height: 16),
+
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: primary, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'El ingreso debe actualizarse cada mes según corresponda',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Categorías de Gasto',
                       style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade700,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '${categorias.length} categorías',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                if (categorias.isEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(40),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.inbox_outlined,
+                          size: 64,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No hay categorías',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Crea tu primera categoría de gasto',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  ...categorias.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final cat = entry.value;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _CategoriaItem(
+                        nombre: cat['nombre'],
+                        monto: cat['monto'],
+                        color: cat['color'],
+                        formatter: formatter,
+                        onTap: () => _editarMonto(index),
+                        onDelete: () => _eliminarCategoria(index),
+                      ),
+                    );
+                  }),
+
+                const SizedBox(height: 24),
+
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [primary.withOpacity(0.1), Colors.white],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: primary.withOpacity(0.3)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      _ResumenRow('Total Gastos', total, primary, formatter),
+                      const Divider(height: 24, thickness: 1),
+                      _ResumenRow(
+                        'Ahorro Estimado',
+                        ahorroEstimado,
+                        ahorroEstimado >= 0 ? Colors.green : Colors.red,
+                        formatter,
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                if (!proyeccionCerrada)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade400,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _cerrarProyeccion,
+                      icon: const Icon(Icons.lock),
+                      label: const Text(
+                        'Cerrar Proyección',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
 
-            const SizedBox(height: 20),
-
-            // Lista de categorías
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Categorías de Gasto',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  '${categorias.length} categorías',
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-                ),
+                const SizedBox(height: 80),
               ],
             ),
-            const SizedBox(height: 12),
-
-            ...categorias.asMap().entries.map((entry) {
-              final index = entry.key;
-              final cat = entry.value;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _CategoriaItem(
-                  nombre: cat['nombre'],
-                  monto: cat['monto'],
-                  color: cat['color'],
-                  onTap: () => _editarMonto(index),
-                  onDelete: () {
-                    setState(() {
-                      categorias.removeAt(index);
-                    });
-                  },
-                ),
-              );
-            }),
-
-            const SizedBox(height: 24),
-
-            // Resumen
+          ),
+          if (isLoading)
             Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [primary.withOpacity(0.1), Colors.white],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: primary.withOpacity(0.3)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
+              color: Colors.black26,
+              child: const Center(
+                child: Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(),
                   ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  _ResumenRow('Total Gastos', total, primary),
-                  Divider(height: 24, thickness: 1),
-                  _ResumenRow(
-                    'Ahorro Estimado',
-                    ahorroEstimado,
-                    ahorroEstimado >= 0 ? Colors.green : Colors.red,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Botón de cerrar proyección
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red.shade400,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: _cerrarProyeccion,
-                icon: Icon(Icons.lock),
-                label: Text(
-                  'Cerrar Proyección',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
-
-            const SizedBox(height: 80), // Espacio para el FAB
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -368,6 +919,8 @@ class _HeaderCard extends StatelessWidget {
     required this.mesActual,
     required this.ingresoMes,
     required this.primary,
+    required this.formatter,
+    required this.bloqueado,
     required this.onYearChanged,
     required this.onMesChanged,
     required this.onIngresoChanged,
@@ -375,11 +928,13 @@ class _HeaderCard extends StatelessWidget {
 
   final int yearActual;
   final int mesActual;
-  final int ingresoMes;
+  final double ingresoMes;
   final Color primary;
+  final NumberFormat formatter;
+  final bool bloqueado;
   final ValueChanged<int> onYearChanged;
   final ValueChanged<int> onMesChanged;
-  final ValueChanged<int> onIngresoChanged;
+  final ValueChanged<double> onIngresoChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -410,22 +965,21 @@ class _HeaderCard extends StatelessWidget {
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         children: [
-          // Selector de Año
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'Año:',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
               ),
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
                   color: primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -433,7 +987,7 @@ class _HeaderCard extends StatelessWidget {
                 ),
                 child: DropdownButton<int>(
                   value: yearActual,
-                  underline: SizedBox.shrink(),
+                  underline: const SizedBox.shrink(),
                   dropdownColor: Colors.white,
                   items: years.map((y) {
                     return DropdownMenuItem(
@@ -447,32 +1001,33 @@ class _HeaderCard extends StatelessWidget {
                       ),
                     );
                   }).toList(),
-                  onChanged: (v) {
-                    if (v != null) onYearChanged(v);
-                  },
+                  onChanged: bloqueado
+                      ? null
+                      : (v) {
+                          if (v != null) onYearChanged(v);
+                        },
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
 
-          // Selector de Mes
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'Mes:',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
               ),
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: primary,
+                  color: bloqueado ? Colors.grey.shade300 : primary,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: DropdownButton<int>(
                   value: mesActual,
-                  underline: SizedBox.shrink(),
+                  underline: const SizedBox.shrink(),
                   dropdownColor: Colors.white,
                   iconEnabledColor: Colors.white,
                   items: List.generate(12, (i) => i + 1).map((m) {
@@ -487,15 +1042,19 @@ class _HeaderCard extends StatelessWidget {
                       ),
                     );
                   }).toList(),
-                  onChanged: (v) {
-                    if (v != null) onMesChanged(v);
-                  },
+                  onChanged: bloqueado
+                      ? null
+                      : (v) {
+                          if (v != null) onMesChanged(v);
+                        },
                   selectedItemBuilder: (context) {
                     return months.map((month) {
                       return Text(
                         month,
                         style: TextStyle(
-                          color: Colors.white,
+                          color: bloqueado
+                              ? Colors.grey.shade600
+                              : Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       );
@@ -506,77 +1065,108 @@ class _HeaderCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Divider(),
+          const Divider(),
           const SizedBox(height: 12),
 
-          // Ingreso
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'Ingreso Mensual:',
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
               ),
               GestureDetector(
-                onTap: () async {
-                  final controller = TextEditingController(
-                    text: ingresoMes.toString(),
-                  );
-                  final result = await showDialog<int>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: Text('Editar Ingreso'),
-                      content: TextField(
-                        controller: controller,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        decoration: InputDecoration(
-                          labelText: 'Ingreso',
-                          prefixText: 'S/ ',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                onTap: bloqueado
+                    ? null
+                    : () async {
+                        final controller = TextEditingController(
+                          text: ingresoMes.toStringAsFixed(2),
+                        );
+                        final result = await showDialog<double>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            title: const Text('Editar Ingreso'),
+                            content: TextField(
+                              controller: controller,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                  RegExp(r'^\d*\.?\d{0,2}'),
+                                ),
+                              ],
+                              decoration: InputDecoration(
+                                labelText: 'Ingreso',
+                                prefixText: 'S/ ',
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              autofocus: true,
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('Cancelar'),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: primary,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () {
+                                  final monto =
+                                      double.tryParse(controller.text) ?? 0.0;
+                                  Navigator.pop(ctx, monto);
+                                },
+                                child: const Text('Guardar'),
+                              ),
+                            ],
                           ),
-                        ),
-                        autofocus: true,
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          child: Text('Cancelar'),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            final monto = int.tryParse(controller.text) ?? 0;
-                            Navigator.pop(ctx, monto);
-                          },
-                          child: Text('Guardar'),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (result != null) onIngresoChanged(result);
-                },
+                        );
+                        if (result != null) onIngresoChanged(result);
+                      },
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
+                    color: bloqueado
+                        ? Colors.grey.shade200
+                        : Colors.green.shade50,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green.shade300),
+                    border: Border.all(
+                      color: bloqueado
+                          ? Colors.grey.shade400
+                          : Colors.green.shade300,
+                    ),
                   ),
                   child: Row(
                     children: [
                       Text(
-                        'S/ $ingresoMes',
+                        formatter.format(ingresoMes),
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.green.shade700,
+                          color: bloqueado
+                              ? Colors.grey.shade700
+                              : Colors.green.shade700,
                         ),
                       ),
                       const SizedBox(width: 4),
-                      Icon(Icons.edit, size: 16, color: Colors.green.shade700),
+                      Icon(
+                        bloqueado ? Icons.lock : Icons.edit,
+                        size: 16,
+                        color: bloqueado
+                            ? Colors.grey.shade700
+                            : Colors.green.shade700,
+                      ),
                     ],
                   ),
                 ),
@@ -594,29 +1184,57 @@ class _CategoriaItem extends StatelessWidget {
     required this.nombre,
     required this.monto,
     required this.color,
+    required this.formatter,
     required this.onTap,
     required this.onDelete,
   });
 
   final String nombre;
-  final int monto;
+  final double monto;
   final Color color;
+  final NumberFormat formatter;
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     return Dismissible(
-      key: Key(nombre),
+      key: Key(nombre + monto.toString()),
       direction: DismissDirection.endToStart,
+      confirmDismiss: (direction) async {
+        return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text('Confirmar eliminación'),
+            content: Text('¿Deseas eliminar la categoría "$nombre"?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Eliminar'),
+              ),
+            ],
+          ),
+        );
+      },
       background: Container(
         alignment: Alignment.centerRight,
-        padding: EdgeInsets.only(right: 16),
+        padding: const EdgeInsets.only(right: 16),
         decoration: BoxDecoration(
           color: Colors.red,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(Icons.delete, color: Colors.white),
+        child: const Icon(Icons.delete, color: Colors.white),
       ),
       onDismissed: (_) => onDelete(),
       child: InkWell(
@@ -625,23 +1243,36 @@ class _CategoriaItem extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
-            color: color,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.grey.shade300),
           ),
           child: Row(
             children: [
-              Icon(Icons.folder, size: 20, color: Colors.grey.shade700),
+              Container(
+                width: 8,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   nombre,
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
                 ),
               ),
               Text(
-                'S/ $monto',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                formatter.format(monto),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
               ),
               const SizedBox(width: 8),
               Icon(Icons.edit, size: 18, color: Colors.grey.shade600),
@@ -654,11 +1285,12 @@ class _CategoriaItem extends StatelessWidget {
 }
 
 class _ResumenRow extends StatelessWidget {
-  const _ResumenRow(this.label, this.amount, this.color);
+  const _ResumenRow(this.label, this.amount, this.color, this.formatter);
 
   final String label;
-  final int amount;
+  final double amount;
   final Color color;
+  final NumberFormat formatter;
 
   @override
   Widget build(BuildContext context) {
@@ -667,10 +1299,10 @@ class _ResumenRow extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         Text(
-          'S/ $amount',
+          formatter.format(amount),
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,

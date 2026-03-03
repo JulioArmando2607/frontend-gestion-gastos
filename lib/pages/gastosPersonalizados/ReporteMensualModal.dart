@@ -76,7 +76,7 @@ class _ReporteMensualModalState extends State<ReporteMensualModal> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: selectedAnio,
+                      initialValue: selectedAnio,
                       decoration: const InputDecoration(labelText: 'AÑO'),
                       items: anios
                           .map(
@@ -95,7 +95,7 @@ class _ReporteMensualModalState extends State<ReporteMensualModal> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: selectedMes,
+                      initialValue: selectedMes,
                       decoration: const InputDecoration(labelText: 'MES'),
                       items: mesesFiltrados.map((mesNum) {
                         final index = int.parse(mesNum) - 1;

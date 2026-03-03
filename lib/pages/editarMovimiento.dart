@@ -347,8 +347,9 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                                     final d = double.tryParse(
                                       (v ?? '').replaceAll(',', '.'),
                                     );
-                                    if (d == null || d <= 0)
+                                    if (d == null || d <= 0) {
                                       return 'Ingresa un monto válido';
+                                    }
                                     return null;
                                   },
                                 ),
@@ -426,8 +427,9 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                                         );
                                       },
                                     );
-                                    if (picked != null)
+                                    if (picked != null) {
                                       setState(() => selectedDate = picked);
+                                    }
                                   },
                                 ),
                                 const SizedBox(height: 14),

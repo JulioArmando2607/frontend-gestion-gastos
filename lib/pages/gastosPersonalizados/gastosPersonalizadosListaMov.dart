@@ -330,6 +330,7 @@ class _GastoPersonalizadoHomeState extends State<GastoPersonalizadoHome> {
                       }
                       //  return false;
                     }
+                    return null;
                   },
                   onDismissed: (dir) async {
                     if (dir == DismissDirection.endToStart) {

@@ -288,9 +288,9 @@ class ApiService {
     return res;
   }
 
-    Future<http.Response> obtenerMovimientoPersonalizado(
+  Future<http.Response> obtenerMovimientoPersonalizado(
     BuildContext context,
-    int idMovimiento, 
+    int idMovimiento,
   ) async {
     final res = await http.get(
       Uri.parse(
@@ -302,18 +302,88 @@ class ApiService {
     return res;
   }
 
-    Future<http.Response> getDashboardData(
+  Future<http.Response> getDashboardData(
     BuildContext context,
-    int anio, int idUsuario, 
+    int anio,
+    int idUsuario,
+  ) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/movimientos/listar-dashboard/$anio/$idUsuario'),
+      headers: await _authHeaders(context),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+
+  Future<http.Response> getObtenerCategoriasProyeccion(
+    BuildContext context,
+    int usuario,
+    int anio,
+    int mes,
+  ) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/proyeccion-mensual/categorias/$usuario/$anio/$mes'),
+      headers: await _authHeaders(context),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+
+  Future<http.Response> insertUpdateProyeccion(
+    BuildContext context,
+    int idUsuario,
+    int anio,
+    int mes,
+    double ingreso,
+    totalGastoFinal,
+    ahorroEstimadoFinal,
+  ) async {
+    var body = {
+      "ingresoMensual": ingreso,
+      "idUsuario": idUsuario,
+      "anio": anio,
+      "mes": mes,
+      "totalGasto": totalGastoFinal,
+      "ahorroEstimado": ahorroEstimadoFinal,
+    };
+    final res = await http.post(
+      Uri.parse('$baseUrl/proyeccion-mensual/nueva-proyeccion/$idUsuario'),
+      headers: await _authHeaders(context, jsonBody: true),
+      body: jsonEncode(body),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+
+  Future getObtenerDetalleProyeccion(
+    BuildContext context,
+    int idUsuario,
+    int anio,
+    int mes,
   ) async {
     final res = await http.get(
       Uri.parse(
-        '$baseUrl/movimientos/listar-dashboard/$anio/$idUsuario',
+        '$baseUrl/proyeccion-mensual/detalle-proyeccion/$idUsuario/$anio/$mes',
       ),
       headers: await _authHeaders(context),
     );
     await _handle401(context, res);
     return res;
   }
-  
+
+  Future<http.Response> guardarProyeccionCategoria(
+    BuildContext context,
+    int idUsuario,
+    body,
+  ) async {
+    final res = await http.post(
+      Uri.parse(
+        '$baseUrl/proyeccion-mensual/nueva-proyeccion-categoria/$idUsuario',
+      ),
+      headers: await _authHeaders(context, jsonBody: true),
+      body: jsonEncode(body),
+    );
+    await _handle401(context, res);
+    return res;
+  }
 }
