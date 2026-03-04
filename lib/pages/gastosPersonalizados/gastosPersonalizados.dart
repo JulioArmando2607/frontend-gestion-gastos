@@ -1,4 +1,4 @@
-import 'package:app_gestion_gastos/api/services.dart';
+﻿import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/clases/CardPersonalizado.dart';
 import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
 import 'package:app_gestion_gastos/pages/gastosPersonalizados/gastosPersonalizadosListaMov.dart';
@@ -7,7 +7,7 @@ import 'package:app_gestion_gastos/pages/nuevoGastoPersonalizado.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'dart:convert';
 import 'package:intl/intl.dart';
 
@@ -27,7 +27,7 @@ class _GastosPersonalizadosState extends State<GastosPersonalizados> {
   double montoGastos = 0.0;
   List<CardPersonalizado> movimientos = [];
   final ApiService service = ApiService();
-  final storage = FlutterSecureStorage();
+  final storage = AppStorage();
 
   @override
   void initState() {
@@ -448,3 +448,4 @@ Color hexToColor(String hex) {
   }
   return Color(int.parse(hex, radix: 16));
 }
+

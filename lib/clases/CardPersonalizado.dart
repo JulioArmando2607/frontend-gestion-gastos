@@ -1,4 +1,4 @@
-class CardPersonalizado {
+﻿class CardPersonalizado {
   final int id;
  // final int userId;
   final String nombre;

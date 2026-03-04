@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:app_gestion_gastos/clases/CategoriaPersonalizado.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -283,7 +283,7 @@ class _CategoriasPageState extends State<CategoriasPage> {
                     ),
                     child: ListTile(
                       leading: const Icon(Icons.label_rounded),
-                      title: Text(c.nombre ?? ''),
+                      title: Text(c.nombre),
                       // Si luego quieres eliminar/editar:
                       // trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () {}),
                     ),
@@ -347,3 +347,4 @@ class _SegmentChip extends StatelessWidget {
     );
   }
 }
+

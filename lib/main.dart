@@ -1,6 +1,6 @@
-import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
+﻿import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
@@ -10,10 +10,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('es_ES', null);
 
-  final storage = FlutterSecureStorage();
+  final storage = AppStorage();
   final token = await storage.read(key: 'token');
 
-  // ✅ válido solo si existe y NO está expirado
+  // válido solo si existe y NO está expirado
   final isLoggedIn = token != null && !JwtDecoder.isExpired(token);
 
   // Limpia si está vencido
@@ -39,3 +39,4 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+

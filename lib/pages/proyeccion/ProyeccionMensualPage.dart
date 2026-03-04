@@ -1,10 +1,10 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:app_gestion_gastos/api/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:intl/intl.dart';
 
@@ -19,13 +19,11 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
   // Constantes
   static const Color primary = Color(0xFF6C55F9);
   static const Color bg = Color(0xFFF8F3FF);
-  static const int maxYearsRange = 7;
-  static const int yearOffset = 3;
   static const double minIngreso = 0.0;
 
   // Servicios
   final ApiService service = ApiService();
-  final storage = const FlutterSecureStorage();
+  final storage = const AppStorage();
   final formatter = NumberFormat.currency(symbol: 'S/ ', decimalDigits: 2);
 
   // Estado
@@ -1313,3 +1311,4 @@ class _ResumenRow extends StatelessWidget {
     );
   }
 }
+

@@ -1,4 +1,4 @@
-import 'package:app_gestion_gastos/clases/Categoria.dart';
+﻿import 'package:app_gestion_gastos/clases/Categoria.dart';
 
 class Movimiento {
   final String tipo;

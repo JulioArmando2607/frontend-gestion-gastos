@@ -1,13 +1,13 @@
-import 'package:app_gestion_gastos/api/services.dart';
+﻿import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/pages/home.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:app_gestion_gastos/utils/app_storage.dart';
 
 class EditarCuentaPage extends StatefulWidget {
   const EditarCuentaPage({super.key});
 
   @override
-  _EditarCuentaPageState createState() => _EditarCuentaPageState();
+  State<EditarCuentaPage> createState() => _EditarCuentaPageState();
 }
 
 class _EditarCuentaPageState extends State<EditarCuentaPage> {
@@ -16,7 +16,7 @@ class _EditarCuentaPageState extends State<EditarCuentaPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-  final storage = FlutterSecureStorage();
+  final storage = AppStorage();
   final ApiService service = ApiService();
 
   Future<void> _registrarUsuario() async {
@@ -27,6 +27,7 @@ class _EditarCuentaPageState extends State<EditarCuentaPage> {
         'email': _emailController.text,
         'password': _passwordController.text,
       });
+      if (!mounted) return;
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         setState(() => _isLoading = false);
@@ -111,3 +112,4 @@ class _EditarCuentaPageState extends State<EditarCuentaPage> {
     );
   }
 }
+

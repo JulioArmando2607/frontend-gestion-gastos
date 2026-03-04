@@ -1,4 +1,4 @@
-class CategoriaPersonalizado {
+﻿class CategoriaPersonalizado {
   final int id;
   final String nombre;
 

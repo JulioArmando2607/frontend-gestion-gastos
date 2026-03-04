@@ -1,4 +1,4 @@
-import 'package:app_gestion_gastos/api/services.dart';
+﻿import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/clases/MovimientoPersonalizado.dart';
 import 'package:app_gestion_gastos/pages/gastosPersonalizados/ReporteMensualModal.dart';
 import 'package:app_gestion_gastos/pages/gastosPersonalizados/gastoPersonalizadoRegMovimiento.dart';
@@ -9,7 +9,7 @@ import 'package:app_gestion_gastos/utils/ui_helpers.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
@@ -60,7 +60,7 @@ class _GastoPersonalizadoHomeState extends State<GastoPersonalizadoHome> {
   double montoGastos = 0.0;
   List<MovimientoPersonalizado> movimientos = [];
   final ApiService service = ApiService();
-  final storage = FlutterSecureStorage();
+  final storage = AppStorage();
   Color colorHex = const Color(0xFF6C63FF); // color por defecto
 
   // Color colorHex = "" as Color;
@@ -101,7 +101,7 @@ class _GastoPersonalizadoHomeState extends State<GastoPersonalizadoHome> {
   }
 
   void obtenerCardPersonalizado() async {
-    // 🔹 Mostrar loading
+    // Mostrar loading
     showLoadingDialog(context, message: 'Cargando datos...');
 
     try {
@@ -112,7 +112,7 @@ class _GastoPersonalizadoHomeState extends State<GastoPersonalizadoHome> {
 
       if (response.statusCode == 200) {
         if (response.body.isEmpty || response.body == "null") {
-          print("⚠️ Respuesta vacía o null");
+          print("Respuesta vacía o null");
           return;
         }
 
@@ -138,18 +138,18 @@ class _GastoPersonalizadoHomeState extends State<GastoPersonalizadoHome> {
           colorHex = colorh;
         });
       } else {
-        print('❌ Error al obtener movimientos: ${response.statusCode}');
+        print('Error al obtener movimientos: ${response.statusCode}');
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error al obtener movimientos')));
       }
     } catch (e) {
-      print("❌ Error: $e");
+      print("Error: $e");
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Ocurrió un error: $e')));
     } finally {
-      // 🔹 Cerrar loading siempre
+      // Cerrar loading siempre
       if (Navigator.canPop(context)) Navigator.pop(context);
     }
   }
@@ -694,3 +694,4 @@ class _EmptyState extends StatelessWidget {
     );
   }
 }
+

@@ -1,8 +1,8 @@
-
+﻿
 import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/pages/home.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'dart:convert';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
@@ -10,7 +10,7 @@ class EditarCuentaPage extends StatefulWidget {
   const EditarCuentaPage({super.key});
 
   @override
-  _EditarCuentaPageState createState() => _EditarCuentaPageState();
+  State<EditarCuentaPage> createState() => _EditarCuentaPageState();
 }
 
 class _EditarCuentaPageState extends State<EditarCuentaPage> {
@@ -23,22 +23,20 @@ class _EditarCuentaPageState extends State<EditarCuentaPage> {
   final _formKey = GlobalKey<FormState>();
   final _nombreController = TextEditingController();
   final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
   bool _isLoading = false;
-  final storage = FlutterSecureStorage();
+  final storage = AppStorage();
   final ApiService service = ApiService();
   String nombre = '';
   int idUsuario = 0;
   String email = '';
   Future<void> _registrarUsuario() async {
-    String? token = await storage.read(key: 'token');
-
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       final response = await service.editarCuenta(context, idUsuario, {
         'nombre': _nombreController.text,
         'email': _emailController.text,
       });
+      if (!mounted) return;
 
       if (response.statusCode == 200 ||
           response.statusCode == 201 ||
@@ -193,3 +191,4 @@ class _EditarCuentaPageState extends State<EditarCuentaPage> {
     );
   }
 }
+

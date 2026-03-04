@@ -1,8 +1,8 @@
-import 'package:app_gestion_gastos/api/services.dart';
+﻿import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/pages/crearCuenta.dart';
 import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'dart:convert';
 
 class LoginPage extends StatefulWidget {
@@ -15,9 +15,9 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _pass = TextEditingController();
-  final _storage = const FlutterSecureStorage();
+  final _storage = const AppStorage();
   final ApiService service = ApiService();
-  final storage = FlutterSecureStorage();
+  final storage = AppStorage();
 
   bool _isLoading = false;
   bool _obscure = true;
@@ -37,6 +37,7 @@ class _LoginPageState extends State<LoginPage> {
           final token = jsonDecode(response.body)['token'];
           await storage.write(key: 'token', value: token);
 
+          if (!mounted) return;
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => DashboardPage()),
@@ -53,11 +54,14 @@ class _LoginPageState extends State<LoginPage> {
           );
         }
       } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error inesperado: $e')));
       } finally {
-        setState(() => _isLoading = false);
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
     }
   }
@@ -73,6 +77,7 @@ class _LoginPageState extends State<LoginPage> {
   void initState() {
     super.initState();
     _storage.read(key: 'email').then((v) {
+      if (!mounted) return;
       if (v != null) {
         setState(() {
           _email.text = v;
@@ -322,3 +327,4 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
+

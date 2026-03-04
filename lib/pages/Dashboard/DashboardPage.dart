@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:math' as math;
 import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/pages/gastosDiarios.dart';
@@ -6,7 +6,7 @@ import 'package:app_gestion_gastos/pages/gastosPersonalizados/gastosPersonalizad
 import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:app_gestion_gastos/pages/proyeccion/ProyeccionMensualPage.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'package:intl/intl.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
@@ -20,7 +20,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   final primary = const Color(0xFF6C55F9);
   final bg = const Color(0xFFF8F3FF);
-  final storage = FlutterSecureStorage();
+  final storage = AppStorage();
   String nombre = '';
   final ApiService service = ApiService();
   int idUsuario = 0;
@@ -74,10 +74,11 @@ class _DashboardPageState extends State<DashboardPage> {
                 item['proyeccionTotal'] ?? 0; // If you have this field
           }
 
+          final ratio = totalProyeccion > 0 ? (totalGasto / totalProyeccion) : 0.0;
           setState(() {
             gastoMes = totalGasto;
             proyeccionMes = totalProyeccion;
-            avance = gastoMes / proyeccionMes; // Update this formula as needed
+            avance = ratio.isFinite ? ratio : 0.0;
           });
         } else {
           setState(() {
@@ -385,7 +386,7 @@ class _MonthScrollableState extends State<_MonthScrollable> {
         borderRadius: BorderRadius.circular(28),
       ),
       child: ListView.separated(
-        controller: _scrollController, // ⭐ IMPORTANTE
+        controller: _scrollController, // IMPORTANTE
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         itemCount: widget.months.length,
@@ -646,3 +647,4 @@ class _NavTile extends StatelessWidget {
     );
   }
 }
+

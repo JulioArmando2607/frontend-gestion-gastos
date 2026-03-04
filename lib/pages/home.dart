@@ -1,11 +1,11 @@
-import 'package:app_gestion_gastos/api/services.dart';
+﻿import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/clases/Movimiento.dart';
 import 'package:app_gestion_gastos/pages/editarCuenta.dart';
 import 'package:app_gestion_gastos/pages/gastosDiarios.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:flutter/material.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'dart:convert';
 import 'package:intl/intl.dart';
 
@@ -25,7 +25,7 @@ class _HomePageState extends State<HomePage> {
   double montoGastos = 0.0;
   List<Movimiento> movimientos = [];
   final ApiService service = ApiService();
-  final storage = FlutterSecureStorage();
+  final storage = AppStorage();
 
   @override
   void initState() {
@@ -108,22 +108,24 @@ class _HomePageState extends State<HomePage> {
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);
 
+      if (!mounted) return;
       setState(() {
         movimientos = data.map((e) => Movimiento.fromJson(e)).toList();
       });
     } else {
-      print('Error al obtener movimientos: ${response.statusCode}');
+      debugPrint('Error al obtener movimientos: ${response.statusCode}');
     }
   }
 
   eliminarMovimiento(id) async {
     final response = await service.eliminarMovimiento(context, id.toString());
     if (response.statusCode == 200) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Movimiento eliminado con éxito')));
     } else {
-      print('Error al obtener movimientos: ${response.statusCode}');
+      debugPrint('Error al obtener movimientos: ${response.statusCode}');
     }
   }
 
@@ -168,6 +170,7 @@ class _HomePageState extends State<HomePage> {
 
               if (confirm == true) {
                 await storage.deleteAll(); // Borra todos los datos guardados
+                if (!mounted) return;
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(builder: (context) => LoginPage()),
@@ -472,22 +475,5 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildTransactionItem(
-    BuildContext context, {
-    required String amount,
-    required String description,
-    required String categoria,
-    required String date,
-    required Color color,
-  }) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ListTile(
-        leading: Icon(Icons.circle, color: color),
-        title: Text(amount),
-        subtitle: Text('$description \n $categoria'),
-        trailing: Text(date),
-      ),
-    );
-  }
 }
+

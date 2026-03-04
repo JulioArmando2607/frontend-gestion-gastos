@@ -1,16 +1,16 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:app_gestion_gastos/api/enviroment.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
 class ApiService {
-  ApiService() : storage = const FlutterSecureStorage();
+  ApiService() : storage = const AppStorage();
 
   final String baseUrl = 'http://${Environment.serverIP}:8081/api';
-  final FlutterSecureStorage storage;
+  final AppStorage storage;
 
   Future<Map<String, String>> _authHeaders(
     BuildContext context, {
@@ -387,3 +387,4 @@ class ApiService {
     return res;
   }
 }
+

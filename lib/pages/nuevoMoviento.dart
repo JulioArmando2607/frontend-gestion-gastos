@@ -1,11 +1,11 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/clases/Categoria.dart';
 import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
 import 'package:app_gestion_gastos/pages/gastosDiarios.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
@@ -25,7 +25,7 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
   List<Categoria> categorias = [];
   Categoria? selectedCategoria;
 
-  final storage = const FlutterSecureStorage();
+  final storage = const AppStorage();
   final ApiService service = ApiService();
 
   String nombre = '';
@@ -517,3 +517,4 @@ class _SegmentChip extends StatelessWidget {
     );
   }
 }
+

@@ -1,4 +1,4 @@
-class Categoria {
+﻿class Categoria {
   final int id;
   final String nombre;
   final String tipo;

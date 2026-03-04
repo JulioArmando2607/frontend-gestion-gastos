@@ -1,9 +1,9 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:app_gestion_gastos/utils/app_storage.dart';
 
 class CrearCuentaPage extends StatefulWidget {
   const CrearCuentaPage({super.key});
@@ -17,7 +17,7 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
   final _nombreController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _storage = const FlutterSecureStorage();
+  final _storage = const AppStorage();
   final _service = ApiService();
 
   bool _isLoading = false;
@@ -231,3 +231,4 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
     );
   }
 }
+

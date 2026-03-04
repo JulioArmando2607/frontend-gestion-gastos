@@ -1,11 +1,11 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/clases/Categoria.dart';
 import 'package:app_gestion_gastos/clases/Movimiento.dart';
 import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
@@ -27,7 +27,7 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
   final TextEditingController montoController = TextEditingController();
   final TextEditingController descripcionController = TextEditingController();
 
-  final storage = const FlutterSecureStorage();
+  final storage = const AppStorage();
   final ApiService service = ApiService();
 
   List<Categoria> categorias = [];
@@ -68,12 +68,13 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
 
       setState(() {
         categorias = list;
-        // Selecciona la categoría del movimiento o la primera
-        selectedCategoria = categorias.firstWhere(
+        // Selecciona la categoría del movimiento o la primera disponible.
+        final idx = categorias.indexWhere(
           (c) => c.id == widget.movimiento.categoria.id,
-          orElse: () =>
-              categorias.isNotEmpty ? categorias.first : null as Categoria,
         );
+        selectedCategoria = idx >= 0
+            ? categorias[idx]
+            : (categorias.isNotEmpty ? categorias.first : null);
       });
     } else {
       debugPrint('Error categorías: ${res.statusCode}');
@@ -186,16 +187,16 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
               onPressed: () async {
                 final confirm = await showDialog<bool>(
                   context: context,
-                  builder: (_) => AlertDialog(
+                  builder: (dialogContext) => AlertDialog(
                     title: const Text('Cerrar sesión'),
                     content: const Text('¿Deseas salir de tu cuenta?'),
                     actions: [
                       TextButton(
-                        onPressed: () => Navigator.pop(context, false),
+                        onPressed: () => Navigator.pop(dialogContext, false),
                         child: const Text('Cancelar'),
                       ),
                       TextButton(
-                        onPressed: () => Navigator.pop(context, true),
+                        onPressed: () => Navigator.pop(dialogContext, true),
                         child: const Text('Salir'),
                       ),
                     ],
@@ -569,3 +570,4 @@ class _SegmentChip extends StatelessWidget {
     );
   }
 }
+
