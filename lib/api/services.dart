@@ -386,5 +386,15 @@ class ApiService {
     await _handle401(context, res);
     return res;
   }
-}
 
+  Future<http.Response> mostrarBotones(
+    String codigoBoton,
+    BuildContext context,
+  ) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/auth/mostar-boton/${codigoBoton}'),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+}

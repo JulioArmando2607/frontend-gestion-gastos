@@ -22,7 +22,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   bool _obscure = true;
   bool _rememberMe = false;
-
+  bool mostrarBtnReset = false;
   void _login() async {
     if (_formKey.currentState?.validate() ?? false) {
       setState(() => _isLoading = true);
@@ -43,7 +43,7 @@ class _LoginPageState extends State<LoginPage> {
             MaterialPageRoute(builder: (context) => DashboardPage()),
           );
 
-      /*    ScaffoldMessenger.of(
+          /*    ScaffoldMessenger.of(
             context,
           ).showSnackBar(const SnackBar(content: Text('Login exitoso')));*/
         } else {
@@ -62,6 +62,28 @@ class _LoginPageState extends State<LoginPage> {
         if (mounted) {
           setState(() => _isLoading = false);
         }
+      }
+    }
+  }
+
+  Future<bool> mostrarBotones(codigoBoton) async {
+    // Validar formulario antes de continuar
+    setState(() => _isLoading = true);
+
+    try {
+      // Hacer la llamada asincrónica para obtener los botones
+      var response = await service.mostrarBotones(codigoBoton, context);
+      print(response.body);
+      return response.body.toLowerCase() == 'true' ? true : false;
+    } catch (e) {
+      // Mostrar error en caso de una excepción
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error inesperado: $e')));
+      return false;
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -85,6 +107,24 @@ class _LoginPageState extends State<LoginPage> {
         });
       }
     });
+
+    _validarBotones();
+  }
+
+  Future<void> _validarBotones() async {
+    mostrarBtnReset = await mostrarBotones('BT001_RESET_PWD');
+
+    if (mostrarBtnReset) {
+      // Si la respuesta es true, mostrar el botón de "¿Olvidaste tu contraseña?"
+      setState(() {
+        // Aquí puedes actualizar tu variable de estado si necesitas más controles
+        mostrarBtnReset = true;
+      });
+    } else {
+      setState(() {
+        mostrarBtnReset = false;
+      });
+    }
   }
 
   @override
@@ -260,10 +300,22 @@ class _LoginPageState extends State<LoginPage> {
                           // Enlaces
                           Column(
                             children: [
-                            /*  TextButton(
-                                onPressed: () {}, // TODO: recuperar
-                                child: const Text('¿Olvidaste tu contraseña?'),
-                              ),*/
+                              if (mostrarBtnReset)
+                                TextButton(
+                                  onPressed: () async {
+                                    bool mostrar = await mostrarBotones(
+                                      'BT001_RESET_PWD',
+                                    );
+                                    if (mostrar) {
+                                      print(
+                                        "Se mostrarán los botones de recuperación de contraseña",
+                                      );
+                                    }
+                                  }, // TODO: recuperar
+                                  child: const Text(
+                                    '¿Olvidaste tu contraseña?',
+                                  ),
+                                ),
                               TextButton(
                                 onPressed: () {
                                   _crearCuenta();
@@ -327,4 +379,3 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-
