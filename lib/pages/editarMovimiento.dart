@@ -121,6 +121,49 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
     }
   }
 
+  Future<void> _eliminar() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirmar eliminación'),
+        content: const Text('¿Eliminar este movimiento?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    final res = await service.eliminarMovimiento(
+      context,
+      widget.movimiento.id.toString(),
+    );
+
+    if (!mounted) return;
+    if (res.statusCode == 200 || res.statusCode == 204) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Movimiento eliminado con éxito')),
+      );
+      Navigator.of(context).pop(true);
+    } else {
+      debugPrint('Error eliminar: ${res.statusCode}');
+      debugPrint('Body eliminar: ${res.body}');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        SnackBar(content: Text('No se pudo eliminar (${res.statusCode})')),
+      );
+    }
+  }
+
   // ---- UI helpers
   InputDecoration _lightInput(String label, {IconData? prefixIcon}) {
     return InputDecoration(
@@ -181,6 +224,12 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
           ),
           title: const Text('Gastos Diarios'),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.delete_rounded),
+              tooltip: 'Eliminar movimiento',
+              onPressed: _eliminar,
+              color: Colors.red.shade600,
+            ),
             IconButton(
               icon: const Icon(Icons.logout_rounded),
               tooltip: 'Cerrar sesión',

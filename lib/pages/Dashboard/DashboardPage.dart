@@ -74,7 +74,9 @@ class _DashboardPageState extends State<DashboardPage> {
                 item['proyeccionTotal'] ?? 0; // If you have this field
           }
 
-          final ratio = totalProyeccion > 0 ? (totalGasto / totalProyeccion) : 0.0;
+          final ratio = totalProyeccion > 0
+              ? (totalGasto / totalProyeccion)
+              : 0.0;
           setState(() {
             gastoMes = totalGasto;
             proyeccionMes = totalProyeccion;
@@ -553,12 +555,13 @@ class _CircularStat extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
               ),
+              /*
               const SizedBox(height: 8),
               Text(
                 'Proyección\nS/ ${proyeccionMes.toStringAsFixed(1)}',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: primary, fontWeight: FontWeight.w600),
-              ),
+              ),*/
             ],
           ),
         ],
@@ -647,4 +650,3 @@ class _NavTile extends StatelessWidget {
     );
   }
 }
-

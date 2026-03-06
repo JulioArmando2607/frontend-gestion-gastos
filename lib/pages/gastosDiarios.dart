@@ -86,23 +86,13 @@ class _GastosdiariosState extends State<Gastosdiarios> {
     }
   }
 
-  eliminarMovimiento(id) async {
-    final response = await service.eliminarMovimiento(context, id.toString());
-    if (response.statusCode == 200) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Movimiento eliminado con éxito')));
-    } else {
-      print('Error al obtener movimientos: ${response.statusCode}');
-    }
-  }
-
   String getFechaFormateada() {
     DateTime ahora = DateTime.now();
     final locale = 'es_ES'; // Español
     final formatter = DateFormat('EEEE, d \'de\' MMMM', locale);
     return toBeginningOfSentenceCase(formatter.format(ahora)) ?? '';
   }
+
   // Paleta (igual que el dashboard)
   final Color primary = const Color(0xFF6C55F9);
   final Color bg = const Color(0xFFF8F3FF);
@@ -127,7 +117,9 @@ class _GastosdiariosState extends State<Gastosdiarios> {
         cardTheme: CardThemeData(
           color: Colors.white,
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
         ),
       ),
       child: Scaffold(
@@ -151,15 +143,24 @@ class _GastosdiariosState extends State<Gastosdiarios> {
                     title: const Text('Cerrar sesión'),
                     content: const Text('¿Deseas salir de tu cuenta?'),
                     actions: [
-                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-                      TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Salir')),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('Cancelar'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Salir'),
+                      ),
                     ],
                   ),
                 );
                 if (confirm == true) {
                   await storage.deleteAll();
                   if (!mounted) return;
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginPage()));
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const LoginPage()),
+                  );
                 }
               },
             ),
@@ -183,63 +184,25 @@ class _GastosdiariosState extends State<Gastosdiarios> {
               ...List.generate(movimientos.length, (i) {
                 final m = movimientos[i];
                 final ingreso = m.tipo == 'INGRESO';
-                return Dismissible(
-                  key: Key(m.id.toString()),
-                  background: _dismissBg(Colors.blue, Icons.edit_rounded, Alignment.centerLeft),
-                  secondaryBackground: _dismissBg(Colors.red, Icons.delete_rounded, Alignment.centerRight),
-                  confirmDismiss: (dir) async {
-                    if (dir == DismissDirection.endToStart) {
-                      final ok = await showDialog<bool>(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          title: const Text('Confirmar eliminación'),
-                          content: const Text('¿Eliminar este movimiento?'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-                            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Eliminar')),
-                          ],
-                        ),
-                      );
-                      return ok ?? false;
-                    } else {
+                return _MovementTile(
+                  titulo: m.descripcion,
+                  categoria: m.categoria.nombre,
+                  fecha: m.fecha,
+                  monto: m.monto,
+                  positivo: ingreso,
+                  primary: primary,
+                  onTap: () async {
+                    final created = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute(
+                        builder: (_) => EditarMovimientoPage(movimiento: m),
+                      ),
+                    );
 
-                        final created = await Navigator.of(context).push<bool>(
-                          MaterialPageRoute(builder: (_) => EditarMovimientoPage(movimiento: m)),
-                        );
-
-                        // Si guardó algo, refresca tu lista/resumen
-                        if (created == true) {
-                          obtenerMovimientos();
-                          obtenerCarResumen();
-                        }
-
-                 /*    Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (_) => EditarMovimientoPage(movimiento: m)),
-                      ); */
-                      return false;
+                    if (created == true) {
+                      obtenerMovimientos();
+                      obtenerCarResumen();
                     }
                   },
-                  onDismissed: (dir) async {
-                    if (dir == DismissDirection.endToStart) {
-                      await eliminarMovimiento(m.id);
-                      setState(() {
-                        movimientos.removeAt(i);
-                        obtenerCarResumen();
-                        obtenerMovimientos();
-                      });
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Movimiento eliminado')));
-                    }
-                  },
-                  child: _MovementTile(
-                    titulo: m.descripcion,
-                    categoria: m.categoria.nombre,
-                    fecha: m.fecha,
-                    monto: m.monto,
-                    positivo: ingreso,
-                    primary: primary,
-                  ),
                 );
               }),
           ],
@@ -260,18 +223,13 @@ class _GastosdiariosState extends State<Gastosdiarios> {
           foregroundColor: Colors.white,
           icon: const Icon(Icons.add_rounded),
           label: const Text('Nuevo'),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
     );
   }
-
-  Widget _dismissBg(Color c, IconData icon, Alignment align) => Container(
-    alignment: align,
-    padding: const EdgeInsets.symmetric(horizontal: 20),
-    decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(22)),
-    child: Icon(icon, color: Colors.white),
-  );
 }
 
 // ====== Widgets de UI ======
@@ -303,20 +261,45 @@ class _BalanceCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
-              const Icon(Icons.account_balance_wallet_rounded, color: Colors.amber),
-              const SizedBox(width: 8),
-              Text('Saldo Total', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
-            ]),
+            Row(
+              children: [
+                const Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: Colors.amber,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Saldo Total',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 6),
-            Text('S/ ${saldo.toStringAsFixed(2)}', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w800)),
+            Text(
+              'S/ ${saldo.toStringAsFixed(2)}',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _stat('Ingresos', 'S/ ${ingresos.toStringAsFixed(2)}')),
-                Expanded(child: _stat('Gastos', 'S/ ${gastos.toStringAsFixed(2)}', alignEnd: true)),
+                Expanded(
+                  child: _stat('Ingresos', 'S/ ${ingresos.toStringAsFixed(2)}'),
+                ),
+                Expanded(
+                  child: _stat(
+                    'Gastos',
+                    'S/ ${gastos.toStringAsFixed(2)}',
+                    alignEnd: true,
+                  ),
+                ),
               ],
-            )
+            ),
           ],
         ),
       ),
@@ -325,11 +308,19 @@ class _BalanceCard extends StatelessWidget {
 
   Widget _stat(String label, String value, {bool alignEnd = false}) {
     return Column(
-      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: alignEnd
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(color: Colors.white70)),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }
@@ -343,12 +334,14 @@ class _MovementTile extends StatelessWidget {
     required this.monto,
     required this.positivo,
     required this.primary,
+    this.onTap,
   });
 
   final String titulo, categoria, fecha;
   final double monto;
   final bool positivo;
   final Color primary;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -356,42 +349,79 @@ class _MovementTile extends StatelessWidget {
     final color = positivo ? Colors.green : Colors.red;
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Row(
-          children: [
-            Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(
-                color: primary.withOpacity(.12),
-                shape: BoxShape.circle,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: primary.withOpacity(.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  positivo
+                      ? Icons.trending_up_rounded
+                      : Icons.trending_down_rounded,
+                  color: primary,
+                ),
               ),
-              child: Icon(positivo ? Icons.trending_up_rounded : Icons.trending_down_rounded, color: primary),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titulo,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      categoria,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(titulo, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.edit_rounded,
+                        size: 18,
+                        color: Colors.grey.shade700,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    amount,
+                    style: TextStyle(fontWeight: FontWeight.w700, color: color),
+                  ),
                   const SizedBox(height: 2),
-                  Text(categoria, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                  Text(
+                    fecha,
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
                 ],
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(amount, style: TextStyle(fontWeight: FontWeight.w700, color: color)),
-                const SizedBox(height: 2),
-                Text(fecha, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+
 }
 
 class _EmptyState extends StatelessWidget {
@@ -405,14 +435,22 @@ class _EmptyState extends StatelessWidget {
       alignment: Alignment.center,
       child: Column(
         children: [
-          Icon(Icons.receipt_long_rounded, size: 56, color: primary.withOpacity(.6)),
+          Icon(
+            Icons.receipt_long_rounded,
+            size: 56,
+            color: primary.withOpacity(.6),
+          ),
           const SizedBox(height: 12),
-          const Text('Sin movimientos aún', style: TextStyle(fontWeight: FontWeight.w700)),
-          Text('Agrega tu primer gasto con el botón "Nuevo".', style: TextStyle(color: Colors.grey.shade600)),
+          const Text(
+            'Sin movimientos aún',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          Text(
+            'Agrega tu primer gasto con el botón "Nuevo".',
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
         ],
       ),
     );
   }
-
 }
-

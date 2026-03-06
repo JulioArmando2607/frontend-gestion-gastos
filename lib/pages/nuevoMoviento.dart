@@ -73,6 +73,7 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
 
     final token = await storage.read(key: 'token');
     if (token == null || selectedCategoria == null) return;
+    if (!mounted) return;
 
     final decoded = JwtDecoder.decode(token);
     idUsuario = decoded['id'];
@@ -129,6 +130,7 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
   @override
   Widget build(BuildContext context) {
     final textTheme = GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme);
+    final media = MediaQuery.of(context);
 
     final t = Theme.of(context).copyWith(
       textTheme: GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme),
@@ -149,7 +151,8 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
       ),
     );
 
-    final size = MediaQuery.of(context).size;
+    final size = media.size;
+    final keyboardInset = media.viewInsets.bottom;
     final sheetHeight = size.height * 0.92;
 
     return Theme(
@@ -182,7 +185,7 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
                 );
                 if (confirm == true) {
                   await storage.deleteAll();
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginPage()));
                 }
               },
@@ -219,21 +222,25 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
                   ),
                   child: SafeArea(
                     top: false,
-                    child: Stack(
-                      children: [
-                        // contenido scroll
-                        SingleChildScrollView(
-                          padding: EdgeInsets.only(
-                            left: 20,
-                            right: 20,
-                            top: 12,
-                            bottom: 90, // espacio para el botón fijo
-                          ),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
+                    child: AnimatedPadding(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      padding: EdgeInsets.only(bottom: keyboardInset),
+                      child: Stack(
+                        children: [
+                          // contenido scroll
+                          SingleChildScrollView(
+                            padding: const EdgeInsets.only(
+                              left: 20,
+                              right: 20,
+                              top: 12,
+                              bottom: 110, // espacio para botones fijos
+                            ),
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
                                 // handle
                                 Center(
                                   child: Container(
@@ -272,7 +279,7 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
                                       label: 'Gasto',
                                       icon: Icons.call_made_rounded,
                                       active: isGasto,
-                                      bgActive: primary.withOpacity(.12),
+                                      bgActive: primary.withValues(alpha: .12),
                                       fgActive: primary,
                                       onTap: () {
                                         setState(() {
@@ -287,7 +294,7 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
                                       label: 'Ingreso',
                                       icon: Icons.call_received_rounded,
                                       active: !isGasto,
-                                      bgActive: primary.withOpacity(.12),
+                                      bgActive: primary.withValues(alpha: .12),
                                       fgActive: primary,
                                       onTap: () {
                                         setState(() {
@@ -406,56 +413,57 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
                                   decoration: _lightInput('Añade una nota…',
                                       prefixIcon: Icons.notes_rounded),
                                 ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          // botón fijo inferior
+                          Positioned(
+                            left: 20,
+                            right: 20,
+                            bottom: 20,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: primary,
+                                      side: BorderSide(color: primary),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 14),
+                                    ),
+                                    child: const Text('Cancelar'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: _guardar,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: primary,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 14),
+                                      elevation: 0,
+                                    ),
+                                    child: const Text('Guardar',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w700)),
+                                  ),
+                                ),
                               ],
                             ),
                           ),
-                        ),
-
-                        // botón fijo inferior
-                        Positioned(
-                          left: 20,
-                          right: 20,
-                          bottom: 20,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: primary,
-                                    side: BorderSide(color: primary),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 14),
-                                  ),
-                                  child: const Text('Cancelar'),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: _guardar,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: primary,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 14),
-                                    elevation: 0,
-                                  ),
-                                  child: const Text('Guardar',
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.w700)),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
