@@ -116,10 +116,16 @@ class _GastosPersonalizadosState extends State<GastosPersonalizados> {
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
-            onPressed: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const DashboardPage()),
-            ),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DashboardPage()),
+                );
+              }
+            },
             icon: const Icon(Icons.arrow_back_ios_new_rounded),
           ),
           title: const Text('Mis Tarjetas'),
@@ -148,9 +154,9 @@ class _GastosPersonalizadosState extends State<GastosPersonalizados> {
                 if (confirm == true) {
                   await storage.deleteAll();
                   if (!mounted) return;
-                  Navigator.pushReplacement(
-                    context,
+                  Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (_) => const LoginPage()),
+                    (route) => false,
                   );
                 }
               },
@@ -303,7 +309,7 @@ class _BalanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        Navigator.pushReplacement(
+        Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => GastoPersonalizadoHome(idCard: idCard),

@@ -4,6 +4,7 @@ import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
 import 'package:app_gestion_gastos/pages/editarMovimiento.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:app_gestion_gastos/pages/nuevoMoviento.dart';
+import 'package:app_gestion_gastos/pages/reportes/gastosReportesPage.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
@@ -77,7 +78,7 @@ class _GastosdiariosState extends State<Gastosdiarios> {
     final response = await service.obtenerMovimientos(context);
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);
-
+      print(data);
       setState(() {
         movimientos = data.map((e) => Movimiento.fromJson(e)).toList();
       });
@@ -125,10 +126,16 @@ class _GastosdiariosState extends State<Gastosdiarios> {
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
-            onPressed: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const DashboardPage()),
-            ),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DashboardPage()),
+                );
+              }
+            },
             icon: const Icon(Icons.arrow_back_ios_new_rounded),
           ),
           title: const Text('Gastos Diarios'),
@@ -157,9 +164,9 @@ class _GastosdiariosState extends State<Gastosdiarios> {
                 if (confirm == true) {
                   await storage.deleteAll();
                   if (!mounted) return;
-                  Navigator.pushReplacement(
-                    context,
+                  Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (_) => const LoginPage()),
+                    (route) => false,
                   );
                 }
               },
@@ -175,6 +182,14 @@ class _GastosdiariosState extends State<Gastosdiarios> {
               saldo: montoSaldoTotal,
               ingresos: montoIngresos,
               gastos: montoGastos,
+              onTapReportes: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => GastosReportesPage(movimientos: movimientos),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 16),
 
@@ -240,10 +255,12 @@ class _BalanceCard extends StatelessWidget {
     required this.saldo,
     required this.ingresos,
     required this.gastos,
+    required this.onTapReportes,
   });
 
   final Color primary;
   final double saldo, ingresos, gastos;
+  final VoidCallback onTapReportes;
 
   @override
   Widget build(BuildContext context) {
@@ -268,11 +285,29 @@ class _BalanceCard extends StatelessWidget {
                   color: Colors.amber,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Saldo Total',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Text(
+                    'Saldo Total',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                InkWell(
+                  onTap: onTapReportes,
+                  borderRadius: BorderRadius.circular(999),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.dashboard_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
               ],

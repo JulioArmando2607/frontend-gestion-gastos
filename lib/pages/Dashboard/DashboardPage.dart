@@ -1,10 +1,11 @@
 ﻿import 'dart:convert';
 import 'dart:math' as math;
 import 'package:app_gestion_gastos/api/services.dart';
+import 'package:app_gestion_gastos/pages/editarCuenta.dart';
 import 'package:app_gestion_gastos/pages/gastosDiarios.dart';
 import 'package:app_gestion_gastos/pages/gastosPersonalizados/gastosPersonalizados.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
-import 'package:app_gestion_gastos/pages/proyeccion/ProyeccionMensualPage.dart';
+import 'package:app_gestion_gastos/pages/proyeccion/ProyeccionesPage.dart';
 import 'package:flutter/material.dart';
 import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'package:intl/intl.dart';
@@ -71,7 +72,7 @@ class _DashboardPageState extends State<DashboardPage> {
           for (var item in data) {
             totalGasto += item['gastoTotal'] ?? 0;
             totalProyeccion +=
-                item['proyeccionTotal'] ?? 0; // If you have this field
+                item['ingresoTotal'] ?? 0; // If you have this field
           }
 
           final ratio = totalProyeccion > 0
@@ -96,36 +97,46 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  void obtenerDatosDesdeToken() async {
-    String? token = await storage.read(key: 'token');
+  Future<void> obtenerDatosDesdeToken() async {
+    try {
+      final token = await storage.read(key: 'token');
+      if (token == null || JwtDecoder.isExpired(token)) return;
 
-    if (token != null) {
-      Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+      final decodedToken = JwtDecoder.decode(token);
+      final tokenNombre = (decodedToken['nombre'] ?? '').toString();
+      final tokenId = decodedToken['id'];
+      final parsedId = tokenId is int ? tokenId : int.tryParse('$tokenId') ?? 0;
 
+      if (!mounted) return;
       setState(() {
-        nombre = decodedToken['nombre'];
-        idUsuario = decodedToken['id'];
-        //email = decodedToken['sub'];
+        nombre = tokenNombre;
+        idUsuario = parsedId;
       });
-      getUsuario(idUsuario.toString());
-      //print('Nombre: $nombre, ID: $idUsuario, Email: $email');
+
+      if (parsedId > 0) {
+        await getUsuario(parsedId.toString());
+      }
+    } catch (e) {
+      debugPrint('Error en obtenerDatosDesdeToken: $e');
     }
   }
 
   Future<void> getUsuario(String id) async {
-    final response = await service.usuario(context, id);
+    try {
+      final response = await service.usuario(context, id);
+      if (response.statusCode != 200) return;
 
-    if (response.statusCode == 200) {
-      // Decodifica el JSON de forma segura (UTF-8)
       final Map<String, dynamic> data = jsonDecode(
         utf8.decode(response.bodyBytes),
       );
+      final nombreApi = (data['nombre'] as String? ?? '').trim();
 
-      if (!mounted) return;
+      if (!mounted || nombreApi.isEmpty) return;
       setState(() {
-        nombre = data['nombre'] as String? ?? '';
-        // email = data['email'] as String? ?? '';
+        nombre = nombreApi;
       });
+    } catch (e) {
+      debugPrint('Error en getUsuario: $e');
     }
   }
 
@@ -189,9 +200,10 @@ class _DashboardPageState extends State<DashboardPage> {
 
               if (confirm == true) {
                 await storage.deleteAll(); // Borra todos los datos guardados
-                Navigator.pushReplacement(
-                  context,
+                if (!context.mounted) return;
+                Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (context) => LoginPage()),
+                  (route) => false,
                 );
               }
             },
@@ -204,7 +216,27 @@ class _DashboardPageState extends State<DashboardPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Hola, $nombre', style: TextStyle(fontSize: 23)),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('Hola, $nombre', style: const TextStyle(fontSize: 23)),
+                  ),
+                  IconButton(
+                    tooltip: 'Datos personales',
+                    icon: const Icon(Icons.person_outline),
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const EditarCuentaPage(),
+                        ),
+                      );
+                      if (!mounted) return;
+                      await obtenerDatosDesdeToken();
+                    },
+                  ),
+                ],
+              ),
               SizedBox(height: 16),
               // Año + botón para resumen
               Row(
@@ -253,7 +285,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 iconBg: const Color(0xFFFFEB6D),
                 title: 'Gastos Diarios',
                 onTap: () {
-                  Navigator.pushReplacement(
+                  Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => Gastosdiarios()),
                   );
@@ -265,7 +297,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 iconBg: const Color(0xFFE6C8FF),
                 title: 'Gastos Personalizados',
                 onTap: () {
-                  Navigator.pushReplacement(
+                  Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => GastosPersonalizados(),
@@ -279,10 +311,10 @@ class _DashboardPageState extends State<DashboardPage> {
                 iconBg: const Color(0xFFD8D2FE),
                 title: 'Proyeccion Mensual',
                 onTap: () {
-                  Navigator.pushReplacement(
+                  Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ProyeccionMensualPage(),
+                      builder: (context) => const ProyeccionesPage(),
                     ),
                   );
                 },

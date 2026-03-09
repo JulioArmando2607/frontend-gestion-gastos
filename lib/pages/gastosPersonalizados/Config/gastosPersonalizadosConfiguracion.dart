@@ -121,6 +121,56 @@ class _CategoriasPageState extends State<CategoriasPage> {
     }
   }
 
+  Future<void> _eliminarCategoria(CategoriaPersonalizado categoria) async {
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Eliminar categoría'),
+        content: Text('¿Deseas eliminar "${categoria.nombre}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmado != true) return;
+
+    try {
+      setState(() => _cargando = true);
+      final res = await service.eliminarCategoriaPersonalizada(
+        context,
+        categoria.id,
+      );
+
+      if (res.statusCode == 200 || res.statusCode == 204) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Categoría eliminada')),
+        );
+        await _cargarCategorias(widget.idCard, tipoMovimiento);
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo eliminar (${res.statusCode})')),
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error al eliminar la categoría')),
+      );
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme);
@@ -284,8 +334,11 @@ class _CategoriasPageState extends State<CategoriasPage> {
                     child: ListTile(
                       leading: const Icon(Icons.label_rounded),
                       title: Text(c.nombre),
-                      // Si luego quieres eliminar/editar:
-                      // trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () {}),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: 'Eliminar categoría',
+                        onPressed: _cargando ? null : () => _eliminarCategoria(c),
+                      ),
                     ),
                   ),
                 ),

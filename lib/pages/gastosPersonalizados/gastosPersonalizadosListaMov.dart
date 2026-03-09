@@ -222,10 +222,18 @@ class _GastoPersonalizadoHomeState extends State<GastoPersonalizadoHome> {
       child: Scaffold(
         appBar: AppBar(
           leading: IconButton(
-            onPressed: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const GastosPersonalizados()),
-            ),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const GastosPersonalizados(),
+                  ),
+                );
+              }
+            },
             icon: const Icon(Icons.arrow_back_ios_new_rounded),
           ),
           title: Text(nombreCard),
@@ -254,9 +262,9 @@ class _GastoPersonalizadoHomeState extends State<GastoPersonalizadoHome> {
                 if (confirm == true) {
                   await storage.deleteAll();
                   if (!mounted) return;
-                  Navigator.pushReplacement(
-                    context,
+                  Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (_) => const LoginPage()),
+                    (route) => false,
                   );
                 }
               },
@@ -376,6 +384,8 @@ class _GastoPersonalizadoHomeState extends State<GastoPersonalizadoHome> {
               ),
               label: 'Registrar movimiento',
               onTap: () async {
+                await _cargarCategorias(widget.idCard);
+
                 if (!isCategoria) {
                   await showDialog(
                     context: context,

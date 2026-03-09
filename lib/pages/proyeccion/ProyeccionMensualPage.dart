@@ -1,15 +1,32 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
+import 'package:app_gestion_gastos/pages/proyeccion/ProyeccionCompartirPage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:app_gestion_gastos/api/services.dart';
+import 'package:app_gestion_gastos/api/proyeccion_compartida_service.dart';
+import 'package:app_gestion_gastos/api/proyeccion_service.dart';
 import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:intl/intl.dart';
 
 class ProyeccionMensualPage extends StatefulWidget {
-  const ProyeccionMensualPage({super.key});
+  const ProyeccionMensualPage({
+    super.key,
+    this.ownerUserId,
+    this.sharedProyeccionId,
+    this.initialYear,
+    this.initialMonth,
+    this.readOnly = false,
+    this.pageTitle,
+  });
+
+  final int? ownerUserId;
+  final int? sharedProyeccionId;
+  final int? initialYear;
+  final int? initialMonth;
+  final bool readOnly;
+  final String? pageTitle;
 
   @override
   State<ProyeccionMensualPage> createState() => _ProyeccionMensualPageState();
@@ -22,7 +39,9 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
   static const double minIngreso = 0.0;
 
   // Servicios
-  final ApiService service = ApiService();
+  final ProyeccionService proyeccionService = ProyeccionService();
+  final ProyeccionCompartidaService proyeccionCompartidaService =
+      ProyeccionCompartidaService();
   final storage = const AppStorage();
   final formatter = NumberFormat.currency(symbol: 'S/ ', decimalDigits: 2);
 
@@ -30,14 +49,27 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
   int yearActual = DateTime.now().year;
   int mesActual = DateTime.now().month;
   double ingresoMes = 0.0;
+  double? totalGastosCabecera;
+  double? ahorroEstimadoCabecera;
   int idUsuario = 0;
+  int usuarioIdAccion = 0;
   List<Map<String, dynamic>> categorias = [];
   bool isLoading = false;
   bool proyeccionCerrada = false;
 
+  var idProyeccionSeleccionada=0;
+  bool get _isReadOnlyMode => proyeccionCerrada;
+  String get _readOnlyMessage => 'Esta proyección está cerrada';
+
   @override
   void initState() {
     super.initState();
+    if (widget.initialYear != null) {
+      yearActual = widget.initialYear!;
+    }
+    if (widget.initialMonth != null) {
+      mesActual = widget.initialMonth!;
+    }
     _inicializar();
   }
 
@@ -57,18 +89,29 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
       }
 
       Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+      final dynamic tokenId = decodedToken['id'];
+      final int usuarioToken = tokenId is num
+          ? tokenId.toInt()
+          : int.tryParse(tokenId?.toString() ?? '') ?? 0;
 
       setState(() {
-        idUsuario = decodedToken['id'] ?? 0;
+        usuarioIdAccion = usuarioToken;
+        idUsuario = widget.ownerUserId ?? usuarioToken;
       });
 
-      if (idUsuario == 0) {
+      if (idUsuario == 0 || usuarioIdAccion == 0) {
         _mostrarError('ID de usuario inválido');
         return;
       }
 
-      await _cargarDetalleProyeccion(idUsuario, yearActual, mesActual);
-      await _cargarCategorias(idUsuario, yearActual, mesActual);
+      final sharedId = widget.sharedProyeccionId ?? 0;
+      if (widget.readOnly && sharedId > 0) {
+        await _cargarDetalleProyeccionCompartida(sharedId);
+        await _cargarCategoriasCompartidas(sharedId);
+      } else {
+        await _cargarDetalleProyeccion(idUsuario, yearActual, mesActual);
+        await _cargarCategorias(idUsuario, yearActual, mesActual);
+      }
     } catch (e) {
       _mostrarError('Error al obtener datos del usuario: $e');
     } finally {
@@ -84,8 +127,8 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
     double? totalGasto,
     double? ahorroEstimado,
   }) async {
-    if (proyeccionCerrada) {
-      _mostrarError('Esta proyección está cerrada');
+    if (_isReadOnlyMode) {
+      _mostrarError(_readOnlyMessage);
       return;
     }
 
@@ -105,7 +148,7 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
       final double ahorroEstimadoFinal =
           ahorroEstimado ?? (ingreso - totalGastoFinal);
 
-      final res = await service.insertUpdateProyeccion(
+      final res = await proyeccionService.insertUpdateProyeccion(
         context,
         idUsuario,
         anio,
@@ -135,25 +178,32 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
     int anio,
     int mes,
   ) async {
+    proyeccionCerrada = false;
+    idProyeccionSeleccionada= 0;
     try {
-      final res = await service.getObtenerDetalleProyeccion(
+      final res = await proyeccionService.getObtenerDetalleProyeccion(
         context,
         idUsuario,
         anio,
         mes,
       );
-
+      print(res.body);
       if (res.statusCode == 200) {
         final resp = jsonDecode(res.body);
 
         if (resp['response'] != null) {
           setState(() {
             ingresoMes = (resp['response']['ingresoMensual'] ?? 0.0).toDouble();
-            proyeccionCerrada = resp['response']['cerrado'] ?? false;
+            totalGastosCabecera = _toDouble(resp['response']['totalGasto']);
+            ahorroEstimadoCabecera = _toDouble(resp['response']['ahorroEstimado']);
+            proyeccionCerrada = resp['response']['estado']=='CERRADA' ? true : false;
+            idProyeccionSeleccionada = resp['response']['id'];
           });
         } else {
           setState(() {
             ingresoMes = 0.0;
+            totalGastosCabecera = null;
+            ahorroEstimadoCabecera = null;
             proyeccionCerrada = false;
           });
         }
@@ -165,11 +215,44 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
     }
   }
 
+
+  Future<void> _cargarDetalleProyeccionCompartida(int idProyeccion) async {
+    idProyeccionSeleccionada = 0;
+    try {
+      final res = await proyeccionCompartidaService.getVerProyeccionCompartida(context, idProyeccion);
+      if (res.statusCode == 200) {
+        final resp = jsonDecode(res.body);
+        final response = resp['response'];
+        if (response is Map) {
+          setState(() {
+            ingresoMes = _toDouble(response['ingresoMensual']);
+            totalGastosCabecera = _toDouble(response['totalGastos']);
+            ahorroEstimadoCabecera = _toDouble(response['ahorroEstimado']);
+            yearActual = _toInt(response['anio']) == 0
+                ? yearActual
+                : _toInt(response['anio']);
+            mesActual = _toInt(response['mes']) == 0
+                ? mesActual
+                : _toInt(response['mes']);
+            proyeccionCerrada =
+                (response['estado']?.toString().toUpperCase() ?? '') == 'CERRADA';
+            idProyeccionSeleccionada = _toInt(response['id']) == 0
+                ? idProyeccion
+                : _toInt(response['id']);
+          });
+        }
+      } else {
+        throw Exception('Error ${res.statusCode}');
+      }
+    } catch (e) {
+      _mostrarError('Error al cargar cabecera compartida: $e');
+    }
+  }
   Future<void> _cargarCategorias(int idUsuario, int anio, int mes) async {
     setState(() => isLoading = true);
 
     try {
-      final res = await service.getObtenerCategoriasProyeccion(
+      final res = await proyeccionService.getObtenerCategoriasProyeccion(
         context,
         idUsuario,
         anio,
@@ -219,11 +302,110 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
     }
   }
 
+
+  Future<void> _cargarCategoriasCompartidas(int idProyeccion) async {
+    setState(() => isLoading = true);
+
+    try {
+      final res = await proyeccionCompartidaService.getDetalleProyeccionCompartida(context, idProyeccion);
+
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        final decoded = jsonDecode(res.body);
+        final rawList = _extraerListaDetalleCompartido(decoded);
+
+        if (rawList.isEmpty) {
+          if (mounted) setState(() => categorias = []);
+          return;
+        }
+
+        final nuevaLista = rawList.map<Map<String, dynamic>>((raw) {
+          final item = (raw is Map)
+              ? Map<String, dynamic>.from(raw)
+              : <String, dynamic>{};
+
+          return {
+            'categoriaId': item['categoriaId'] ?? item['idCategoria'],
+            'proyeccionId': item['proyeccionId'] ?? idProyeccion,
+            'ordenCategoria': item['ordenCategoria'],
+            'estado': item['estado'],
+            'nombre': (item['nombreCategoria'] ??
+                    item['categoriaNombre'] ??
+                    item['nombre'] ??
+                    item['descripcion'] ??
+                    '')
+                .toString(),
+            'monto': _toDouble(
+              item['montoCategoria'] ??
+                  item['montoProyectado'] ??
+                  item['monto'] ??
+                  item['montoGasto'] ??
+                  item['montoPlanificado'] ??
+                  item['valor'],
+            ),
+            'totalGasto': _toDouble(item['totalGasto'] ?? item['totalGastos']),
+            'ahorroEstimado': _toDouble(item['ahorroEstimado']),
+            'ingresoMensual': _toDouble(item['ingresoMensual']),
+            'color': _parseHexColor(item['colorCategoria'] ?? item['color']),
+            'mes': item['mes'] ?? mesActual,
+            'anio': item['anio'] ?? yearActual,
+          };
+        }).toList();
+
+        if (mounted) {
+          setState(() => categorias = nuevaLista);
+        }
+      } else {
+        throw Exception('Error ${res.statusCode}');
+      }
+    } catch (e) {
+      _mostrarError('Error al cargar detalle compartido: $e');
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
+  List<dynamic> _extraerListaDetalleCompartido(dynamic decoded) {
+    if (decoded is List) return decoded;
+    if (decoded is! Map) return const [];
+
+    final response = decoded['response'];
+    if (response is List) return response;
+    if (response is Map) {
+      for (final key in const [
+        'detalle',
+        'detalles',
+        'categorias',
+        'items',
+        'lista',
+        'response',
+      ]) {
+        final value = response[key];
+        if (value is List) return value;
+      }
+    }
+
+    for (final key in const ['detalle', 'detalles', 'categorias', 'items', 'lista']) {
+      final value = decoded[key];
+      if (value is List) return value;
+    }
+
+    return const [];
+  }
   double _toDouble(dynamic v) {
     if (v == null) return 0.0;
     if (v is num) return v.toDouble();
     if (v is String) return double.tryParse(v) ?? 0.0;
     return 0.0;
+  }
+
+  int _toInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
   }
 
   Color _parseHexColor(dynamic v) {
@@ -245,8 +427,8 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
   }
 
   Future<void> _editarMonto(int index) async {
-    if (proyeccionCerrada) {
-      _mostrarError('Esta proyección está cerrada');
+    if (_isReadOnlyMode) {
+      _mostrarError(_readOnlyMessage);
       return;
     }
 
@@ -265,13 +447,74 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
         "color": categorias[index]['color'],
       };
 
-      await _guardarCategoriaEnAPI(body);
+      await _editarMontoCategoriaEnAPI(body);
+    }
+  }
+
+  Future<void> _editarMontoCategoriaEnAPI(Map<String, dynamic> categoria) async {
+    setState(() => isLoading = true);
+    try {
+      final bool esProyeccionCompartida =
+          widget.readOnly && (widget.sharedProyeccionId ?? 0) > 0;
+
+      final colorValue = categoria['color'];
+      final String colorHex = colorValue is Color
+          ? '#${colorValue.value.toRadixString(16).substring(2).toUpperCase()}'
+          : (categoria['colorCategoria']?.toString() ?? '#E0E0E0');
+      final montoCategoria = _toDouble(
+        categoria['monto'] ?? categoria['montoCategoria'],
+      );
+      final idCategoria = _toInt(categoria['idCategoria'] ?? categoria['categoriaId']);
+
+      final res = esProyeccionCompartida
+          ? await proyeccionCompartidaService.editarMontoCategoriaCompartida(
+              context,
+              usuarioIdAccion: usuarioIdAccion,
+              idProyeccion: idProyeccionSeleccionada > 0
+                  ? idProyeccionSeleccionada
+                  : (widget.sharedProyeccionId ?? 0),
+              idCategoria: idCategoria,
+              montoCategoria: montoCategoria,
+            )
+          : await proyeccionService.editarMontoCategoriaProyeccion(
+              context,
+              idUsuario,
+              {
+                'idCategoria': idCategoria,
+                'nombreCategoria':
+                    categoria['nombre'] ?? categoria['nombreCategoria'],
+                'montoCategoria': montoCategoria,
+                'colorCategoria': colorHex,
+                'anio': yearActual,
+                'mes': mesActual,
+                'ingresoMensual': ingresoMes,
+              },
+            );
+
+      if (res.statusCode == 200) {
+        _mostrarExito('Monto actualizado exitosamente');
+        if (esProyeccionCompartida) {
+          final sharedId = idProyeccionSeleccionada > 0
+              ? idProyeccionSeleccionada
+              : (widget.sharedProyeccionId ?? 0);
+          await _cargarDetalleProyeccionCompartida(sharedId);
+          await _cargarCategoriasCompartidas(sharedId);
+        } else {
+          await _cargarCategorias(idUsuario, yearActual, mesActual);
+        }
+      } else {
+        throw Exception('Error ${res.statusCode}');
+      }
+    } catch (e) {
+      _mostrarError('Error al actualizar monto: $e');
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
   Future<void> _crearCategoria() async {
-    if (proyeccionCerrada) {
-      _mostrarError('Esta proyección está cerrada');
+    if (widget.readOnly || _isReadOnlyMode) {
+      _mostrarError(_readOnlyMessage);
       return;
     }
 
@@ -286,7 +529,7 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          title: const Text('Nueva Categoría'),
+          title: const Text('Nueva Categoria'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -449,14 +692,14 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
         'ingresoMensual': ingresoMes,
       };
 
-      final res = await service.guardarProyeccionCategoria(
+      final res = await proyeccionService.guardarProyeccionCategoria(
         context,
         idUsuario,
         body,
       );
 
       if (res.statusCode == 200) {
-        _mostrarExito('Categoría guardada exitosamente');
+        _mostrarExito('Categoria guardada exitosamente');
         await _cargarCategorias(idUsuario, yearActual, mesActual);
       } else {
         throw Exception('Error ${res.statusCode}');
@@ -469,8 +712,8 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
   }
 
   Future<void> _eliminarCategoria(int index) async {
-    if (proyeccionCerrada) {
-      _mostrarError('Esta proyección está cerrada');
+    if (_isReadOnlyMode) {
+      _mostrarError(_readOnlyMessage);
       return;
     }
 
@@ -478,7 +721,7 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Confirmar eliminación'),
+        title: const Text('Confirmar eliminacion'),
         content: Text(
           '¿Deseas eliminar la categoría "${categorias[index]['nombre']}"?',
         ),
@@ -503,12 +746,12 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
       setState(() => isLoading = true);
 
       try {
-        // Aquí deberías llamar al servicio de eliminación
+        // AquÃ­ deberÃ­as llamar al servicio de eliminaciÃ³n
         // final res = await service.eliminarCategoria(context, categorias[index]['categoriaId']);
 
         // Por ahora solo elimino localmente
         setState(() => categorias.removeAt(index));
-        _mostrarExito('Categoría eliminada');
+        _mostrarExito('Categoria eliminada');
 
         await _cargarCategorias(idUsuario, yearActual, mesActual);
       } catch (e) {
@@ -520,8 +763,8 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
   }
 
   Future<void> _cerrarProyeccion() async {
-    if (proyeccionCerrada) {
-      _mostrarError('Esta proyección ya está cerrada');
+    if (_isReadOnlyMode) {
+      _mostrarError(_readOnlyMessage);
       return;
     }
 
@@ -555,11 +798,29 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
       setState(() => isLoading = true);
 
       try {
-        // Aquí deberías llamar al servicio para cerrar la proyección
-        // final res = await service.cerrarProyeccion(context, idUsuario, yearActual, mesActual);
+        // AquÃ­ deberÃ­as llamar al servicio para cerrar la proyecciÃ³n
+        final res = await proyeccionService.cerrarProyeccion(
+          context,
+          idUsuario,
+          yearActual,
+          mesActual,
+        );
+        final decoded = _tryDecodeMap(res.bodyBytes);
+        final codResultado = decoded?['codResultado'] as int?;
+        final msgResultado = (decoded?['msgResultado'] ?? '').toString();
 
-        setState(() => proyeccionCerrada = true);
-        _mostrarExito('Proyección cerrada exitosamente');
+        if (res.statusCode == 200 && codResultado == 1) {
+          setState(() => proyeccionCerrada = true);
+          _mostrarExito(
+            msgResultado.isNotEmpty ? msgResultado : 'Proyección cerrada',
+          );
+        } else {
+          _mostrarError(
+            msgResultado.isNotEmpty
+                ? msgResultado
+                : 'No se pudo cerrar la proyección (${res.statusCode})',
+          );
+        }
       } catch (e) {
         _mostrarError('Error al cerrar proyección: $e');
       } finally {
@@ -639,11 +900,19 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
 
   @override
   Widget build(BuildContext context) {
-    final double total = categorias.fold(
+    final double totalCalculado = categorias.fold(
       0.0,
       (sum, cat) => sum + (cat['monto'] as double),
     );
-    final double ahorroEstimado = ingresoMes - total;
+    final bool usarCabeceraCompartida =
+        widget.readOnly && (widget.sharedProyeccionId ?? 0) > 0;
+    final double total = usarCabeceraCompartida && totalGastosCabecera != null
+        ? totalGastosCabecera!
+        : totalCalculado;
+    final double ahorroEstimado =
+        usarCabeceraCompartida && ahorroEstimadoCabecera != null
+        ? ahorroEstimadoCabecera!
+        : (ingresoMes - total);
 
     return Scaffold(
       backgroundColor: bg,
@@ -651,24 +920,59 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
         backgroundColor: bg,
         elevation: 0,
         leading: IconButton(
-          onPressed: () => Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const DashboardPage()),
-          ),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DashboardPage()),
+              );
+            }
+          },
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
         ),
-        title: const Text(
-          'Proyección Mensual',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        title: Text(
+          widget.pageTitle ?? 'Proyección Mensual',
+          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
+        actions: [
+          if (!widget.readOnly)
+            if(idProyeccionSeleccionada != 0)
+            IconButton(
+              tooltip: 'Compartir',
+              onPressed: () {
+                if (idUsuario <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Aún no se pudo identificar la proyección'),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ProyeccionCompartirPage(
+                      idProyeccionSeleccionada: idProyeccionSeleccionada,
+                      ownerUserId: idUsuario,
+                      anio: yearActual,
+                      mes: mesActual,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.ios_share_rounded),
+            ),
+        ],
       ),
-      floatingActionButton: proyeccionCerrada
+      floatingActionButton: (widget.readOnly || _isReadOnlyMode)
           ? null
           : FloatingActionButton.extended(
               backgroundColor: primary,
               onPressed: _crearCategoria,
               icon: const Icon(Icons.add),
-              label: const Text('Nueva Categoría'),
+              label: const Text('Nueva Categoria'),
             ),
       body: Stack(
         children: [
@@ -709,7 +1013,9 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
                   ingresoMes: ingresoMes,
                   primary: primary,
                   formatter: formatter,
-                  bloqueado: proyeccionCerrada,
+                  bloquearAnio: widget.readOnly,
+                  bloquearMes: widget.readOnly,
+                  bloquearIngreso: widget.readOnly || _isReadOnlyMode,
                   onYearChanged: (y) {
                     setState(() => yearActual = y);
                     _cargarDetalleProyeccion(idUsuario, yearActual, mesActual);
@@ -746,7 +1052,7 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'El ingreso debe actualizarse cada mes según corresponda',
+                          'El ingreso debe actualizarse cada mes segun corresponda',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey.shade700,
@@ -863,7 +1169,7 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
 
                 const SizedBox(height: 24),
 
-                if (!proyeccionCerrada)
+                if (!_isReadOnlyMode)
                   SizedBox(
                     width: double.infinity,
                     height: 50,
@@ -907,7 +1213,17 @@ class _ProyeccionMensualPageState extends State<ProyeccionMensualPage> {
       ),
     );
   }
-}
+
+
+  Map<String, dynamic>? _tryDecodeMap(List<int> bodyBytes) {
+    try {
+      final raw = utf8.decode(bodyBytes);
+      final decoded = jsonDecode(raw);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }}
 
 // ============ WIDGETS DE SOPORTE ============
 
@@ -918,7 +1234,9 @@ class _HeaderCard extends StatelessWidget {
     required this.ingresoMes,
     required this.primary,
     required this.formatter,
-    required this.bloqueado,
+    required this.bloquearAnio,
+    required this.bloquearMes,
+    required this.bloquearIngreso,
     required this.onYearChanged,
     required this.onMesChanged,
     required this.onIngresoChanged,
@@ -929,7 +1247,9 @@ class _HeaderCard extends StatelessWidget {
   final double ingresoMes;
   final Color primary;
   final NumberFormat formatter;
-  final bool bloqueado;
+  final bool bloquearAnio;
+  final bool bloquearMes;
+  final bool bloquearIngreso;
   final ValueChanged<int> onYearChanged;
   final ValueChanged<int> onMesChanged;
   final ValueChanged<double> onIngresoChanged;
@@ -999,7 +1319,7 @@ class _HeaderCard extends StatelessWidget {
                       ),
                     );
                   }).toList(),
-                  onChanged: bloqueado
+                  onChanged: bloquearAnio
                       ? null
                       : (v) {
                           if (v != null) onYearChanged(v);
@@ -1020,7 +1340,7 @@ class _HeaderCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: bloqueado ? Colors.grey.shade300 : primary,
+                  color: bloquearMes ? Colors.grey.shade300 : primary,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: DropdownButton<int>(
@@ -1040,7 +1360,7 @@ class _HeaderCard extends StatelessWidget {
                       ),
                     );
                   }).toList(),
-                  onChanged: bloqueado
+                  onChanged: bloquearMes
                       ? null
                       : (v) {
                           if (v != null) onMesChanged(v);
@@ -1050,7 +1370,7 @@ class _HeaderCard extends StatelessWidget {
                       return Text(
                         month,
                         style: TextStyle(
-                          color: bloqueado
+                          color: bloquearMes
                               ? Colors.grey.shade600
                               : Colors.white,
                           fontWeight: FontWeight.bold,
@@ -1074,7 +1394,7 @@ class _HeaderCard extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
               ),
               GestureDetector(
-                onTap: bloqueado
+                onTap: bloquearIngreso
                     ? null
                     : () async {
                         final controller = TextEditingController(
@@ -1135,12 +1455,12 @@ class _HeaderCard extends StatelessWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: bloqueado
+                    color: bloquearIngreso
                         ? Colors.grey.shade200
                         : Colors.green.shade50,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: bloqueado
+                      color: bloquearIngreso
                           ? Colors.grey.shade400
                           : Colors.green.shade300,
                     ),
@@ -1152,16 +1472,16 @@ class _HeaderCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: bloqueado
+                          color: bloquearIngreso
                               ? Colors.grey.shade700
                               : Colors.green.shade700,
                         ),
                       ),
                       const SizedBox(width: 4),
                       Icon(
-                        bloqueado ? Icons.lock : Icons.edit,
+                        bloquearIngreso ? Icons.lock : Icons.edit,
                         size: 16,
-                        color: bloqueado
+                        color: bloquearIngreso
                             ? Colors.grey.shade700
                             : Colors.green.shade700,
                       ),
@@ -1206,7 +1526,7 @@ class _CategoriaItem extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            title: const Text('Confirmar eliminación'),
+            title: const Text('Confirmar eliminacion'),
             content: Text('¿Deseas eliminar la categoría "$nombre"?'),
             actions: [
               TextButton(
@@ -1311,4 +1631,13 @@ class _ResumenRow extends StatelessWidget {
     );
   }
 }
+
+
+
+
+
+
+
+
+
 

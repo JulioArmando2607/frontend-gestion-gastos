@@ -2,7 +2,6 @@
 import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/clases/Categoria.dart';
 import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
-import 'package:app_gestion_gastos/pages/gastosDiarios.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:flutter/material.dart';
 import 'package:app_gestion_gastos/utils/app_storage.dart';
@@ -35,6 +34,7 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController montoController = TextEditingController();
   final TextEditingController descripcionController = TextEditingController();
+  final TextEditingController fechaController = TextEditingController();
 
   // colores de tu tema
   final Color primary = const Color(0xFF6C55F9);
@@ -45,6 +45,7 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
   @override
   void initState() {
     super.initState();
+    _sincronizarFecha();
     _cargarCategorias(tipoMovimiento);
   }
 
@@ -52,7 +53,46 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
   void dispose() {
     montoController.dispose();
     descripcionController.dispose();
+    fechaController.dispose();
     super.dispose();
+  }
+
+  String _formatearFecha(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString();
+    return '$day/$month/$year';
+  }
+
+  void _sincronizarFecha() {
+    fechaController.text = _formatearFecha(selectedDate);
+  }
+
+  Future<void> _seleccionarFecha() async {
+    final picked = await showDatePicker(
+      context: context,
+      locale: const Locale('es', 'ES'),
+      initialDate: selectedDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      builder: (_, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        selectedDate = picked;
+        _sincronizarFecha();
+      });
+    }
   }
 
   Future<void> _cargarCategorias(String tipo) async {
@@ -96,10 +136,7 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Movimiento registrado con éxito')),
       );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const Gastosdiarios()),
-      );
+      Navigator.pop(context, true);
     } else {
       debugPrint('Error registrar: ${res.statusCode}');
       debugPrint('Body: ${res.body}');
@@ -152,18 +189,24 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
     );
 
     final size = media.size;
-    final keyboardInset = media.viewInsets.bottom;
     final sheetHeight = size.height * 0.92;
 
     return Theme(
       data: t,
       child: Scaffold(
+        resizeToAvoidBottomInset: true,
         appBar: AppBar(
           leading: IconButton(
-            onPressed: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const DashboardPage()),
-            ),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DashboardPage()),
+                );
+              }
+            },
             icon: const Icon(Icons.arrow_back_ios_new_rounded),
           ),
           title: const Text('Gastos Diarios'),
@@ -186,7 +229,10 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
                 if (confirm == true) {
                   await storage.deleteAll();
                   if (!context.mounted) return;
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginPage()));
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginPage()),
+                    (route) => false,
+                  );
                 }
               },
             ),
@@ -200,51 +246,45 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
               end: Alignment.bottomCenter,
             ),
           ),
-          child: Stack(
-            children: [
-              // panel flotante claro
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Container(
-                  height: sheetHeight,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: sheet,
-                    borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(28)),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x22000000),
-                        blurRadius: 24,
-                        offset: Offset(0, -10),
-                      ),
-                    ],
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: AnimatedPadding(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOut,
-                      padding: EdgeInsets.only(bottom: keyboardInset),
-                      child: Stack(
-                        children: [
-                          // contenido scroll
-                          SingleChildScrollView(
-                            padding: const EdgeInsets.only(
-                              left: 20,
-                              right: 20,
-                              top: 12,
-                              bottom: 110, // espacio para botones fijos
-                            ),
-                            child: Form(
-                              key: _formKey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: FractionallySizedBox(
+              widthFactor: 1,
+              heightFactor: 0.92,
+              child: Container(
+                height: sheetHeight,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: sheet,
+                  borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(28)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x22000000),
+                      blurRadius: 24,
+                      offset: Offset(0, -10),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: SingleChildScrollView(
+                          keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
                                 // handle
                                 Center(
                                   child: Container(
-                                    width: 48, height: 5,
+                                    width: 48,
+                                    height: 5,
                                     margin: const EdgeInsets.only(bottom: 16),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFEDE8FF),
@@ -265,8 +305,10 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
                                     ),
                                     IconButton(
                                       onPressed: () => Navigator.pop(context),
-                                      icon: Icon(Icons.close_rounded,
-                                          color: Colors.grey.shade600),
+                                      icon: Icon(
+                                        Icons.close_rounded,
+                                        color: Colors.grey.shade600,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -309,21 +351,28 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
                                 const SizedBox(height: 18),
 
                                 // Monto
-                                Text('Monto',
-                                    style: TextStyle(
-                                        color: Colors.grey.shade800,
-                                        fontWeight: FontWeight.w600)),
+                                Text(
+                                  'Monto',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade800,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                                 const SizedBox(height: 6),
                                 TextFormField(
                                   controller: montoController,
                                   keyboardType:
                                   const TextInputType.numberWithOptions(
-                                      decimal: true),
-                                  decoration: _lightInput('S/ 0.00',
-                                      prefixIcon: Icons.attach_money_rounded),
+                                    decimal: true,
+                                  ),
+                                  decoration: _lightInput(
+                                    'S/ 0.00',
+                                    prefixIcon: Icons.attach_money_rounded,
+                                  ),
                                   validator: (v) {
                                     final d = double.tryParse(
-                                        (v ?? '').replaceAll(',', '.'));
+                                      (v ?? '').replaceAll(',', '.'),
+                                    );
                                     if (d == null || d <= 0) {
                                       return 'Ingresa un monto válido';
                                     }
@@ -333,18 +382,23 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
                                 const SizedBox(height: 14),
 
                                 // Categoría
-                                Text('Categoría',
-                                    style: TextStyle(
-                                        color: Colors.grey.shade800,
-                                        fontWeight: FontWeight.w600)),
+                                Text(
+                                  'Categoría',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade800,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                                 const SizedBox(height: 6),
                                 DropdownButtonFormField<Categoria>(
                                   initialValue: selectedCategoria,
                                   items: categorias
-                                      .map((c) => DropdownMenuItem(
-                                    value: c,
-                                    child: Text(c.nombre),
-                                  ))
+                                      .map(
+                                        (c) => DropdownMenuItem(
+                                      value: c,
+                                      child: Text(c.nombre),
+                                    ),
+                                  )
                                       .toList(),
                                   onChanged: (v) =>
                                       setState(() => selectedCategoria = v),
@@ -352,123 +406,123 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
                                     'Selecciona una categoría',
                                     prefixIcon: Icons.category_rounded,
                                   ),
-                                  validator: (v) => v == null
-                                      ? 'Selecciona una categoría'
-                                      : null,
+                                  validator: (v) =>
+                                  v == null ? 'Selecciona una categoría' : null,
                                 ),
                                 const SizedBox(height: 14),
 
                                 // Fecha
-                                Text('Fecha',
-                                    style: TextStyle(
-                                        color: Colors.grey.shade800,
-                                        fontWeight: FontWeight.w600)),
+                                Text(
+                                  'Fecha',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade800,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                                 const SizedBox(height: 6),
                                 TextFormField(
                                   readOnly: true,
-                                  controller: TextEditingController(
-                                    text:
-                                    '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
-                                  ),
+                                  controller: fechaController,
                                   decoration: _lightInput(
                                     'Selecciona la fecha',
                                     prefixIcon: Icons.event_rounded,
                                   ).copyWith(
                                     suffixIcon: const Icon(
-                                        Icons.expand_more_rounded),
+                                      Icons.expand_more_rounded,
+                                    ),
                                   ),
-                                  onTap: () async {
-                                    final picked = await showDatePicker(
-                                      context: context,
-                                      initialDate: selectedDate,
-                                      firstDate: DateTime(2000),
-                                      lastDate: DateTime(2100),
-                                      builder: (_, child) {
-                                        return Theme(
-                                          data: Theme.of(context).copyWith(
-                                            colorScheme: ColorScheme.light(
-                                              primary: primary,
-                                            ),
-                                          ),
-                                          child: child!,
-                                        );
-                                      },
-                                    );
-                                    if (picked != null) {
-                                      setState(() => selectedDate = picked);
-                                    }
-                                  },
+                                  onTap: _seleccionarFecha,
                                 ),
                                 const SizedBox(height: 14),
 
                                 // Nota
-                                Text('Nota (opcional)',
-                                    style: TextStyle(
-                                        color: Colors.grey.shade800,
-                                        fontWeight: FontWeight.w600)),
+                                Text(
+                                  'Nota (opcional)',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade800,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                                 const SizedBox(height: 6),
                                 TextFormField(
                                   controller: descripcionController,
                                   maxLines: 3,
-                                  decoration: _lightInput('Añade una nota…',
-                                      prefixIcon: Icons.notes_rounded),
-                                ),
-                                ],
-                              ),
-                            ),
-                          ),
-
-                          // botón fijo inferior
-                          Positioned(
-                            left: 20,
-                            right: 20,
-                            bottom: 20,
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: primary,
-                                      side: BorderSide(color: primary),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 14),
-                                    ),
-                                    child: const Text('Cancelar'),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: _guardar,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: primary,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 14),
-                                      elevation: 0,
-                                    ),
-                                    child: const Text('Guardar',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.w700)),
+                                  decoration: _lightInput(
+                                    'Añade una nota…',
+                                    prefixIcon: Icons.notes_rounded,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+
+                      Container(
+                        padding: EdgeInsets.fromLTRB(
+                          20,
+                          12,
+                          20,
+                          20 + media.padding.bottom,
+                        ),
+                        decoration: BoxDecoration(
+                          color: sheet,
+                          border: Border(
+                            top: BorderSide(color: border.withValues(alpha: .7)),
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x12000000),
+                              blurRadius: 10,
+                              offset: Offset(0, -2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: primary,
+                                  side: BorderSide(color: primary),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                                ),
+                                child: const Text('Cancelar'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _guardar,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: primary,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  padding:
+                                  const EdgeInsets.symmetric(vertical: 14),
+                                  elevation: 0,
+                                ),
+                                child: const Text(
+                                  'Guardar',
+                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -525,4 +579,5 @@ class _SegmentChip extends StatelessWidget {
     );
   }
 }
+
 

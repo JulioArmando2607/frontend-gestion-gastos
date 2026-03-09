@@ -26,6 +26,7 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController montoController = TextEditingController();
   final TextEditingController descripcionController = TextEditingController();
+  final TextEditingController fechaController = TextEditingController();
 
   final storage = const AppStorage();
   final ApiService service = ApiService();
@@ -49,6 +50,7 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
     selectedDate = DateTime.parse(widget.movimiento.fecha);
     montoController.text = widget.movimiento.monto.toStringAsFixed(2);
     descripcionController.text = widget.movimiento.descripcion;
+    _sincronizarFecha();
     _cargarCategorias(tipoMovimiento);
   }
 
@@ -56,7 +58,45 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
   void dispose() {
     montoController.dispose();
     descripcionController.dispose();
+    fechaController.dispose();
     super.dispose();
+  }
+
+  String _formatearFecha(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final year = date.year.toString();
+    return '$day/$month/$year';
+  }
+
+  void _sincronizarFecha() {
+    fechaController.text = _formatearFecha(selectedDate);
+  }
+
+  Future<void> _seleccionarFecha() async {
+    final picked = await showDatePicker(
+      context: context,
+      locale: const Locale('es', 'ES'),
+      initialDate: selectedDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      builder: (_, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        selectedDate = picked;
+        _sincronizarFecha();
+      });
+    }
   }
 
   Future<void> _cargarCategorias(String tipo) async {
@@ -188,6 +228,7 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
   @override
   Widget build(BuildContext context) {
     final textTheme = GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme);
+    final media = MediaQuery.of(context);
 
     final t = Theme.of(context).copyWith(
       textTheme: GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme),
@@ -208,18 +249,25 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
       ),
     );
 
-    final size = MediaQuery.of(context).size;
+    final size = media.size;
     final sheetHeight = size.height * 0.92;
 
     return Theme(
       data: t,
       child: Scaffold(
+        resizeToAvoidBottomInset: true,
         appBar: AppBar(
           leading: IconButton(
-            onPressed: () => Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const DashboardPage()),
-            ),
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DashboardPage()),
+                );
+              }
+            },
             icon: const Icon(Icons.arrow_back_ios_new_rounded),
           ),
           title: const Text('Gastos Diarios'),
@@ -254,9 +302,9 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                 if (confirm == true) {
                   await storage.deleteAll();
                   if (!mounted) return;
-                  Navigator.pushReplacement(
-                    context,
+                  Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (_) => const LoginPage()),
+                    (route) => false,
                   );
                 }
               },
@@ -271,33 +319,36 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
               end: Alignment.bottomCenter,
             ),
           ),
-          child: Stack(
-            children: [
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Container(
-                  height: sheetHeight,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: sheet,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(28),
-                    ),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x22000000),
-                        blurRadius: 24,
-                        offset: Offset(0, -10),
-                      ),
-                    ],
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: FractionallySizedBox(
+              widthFactor: 1,
+              heightFactor: 0.92,
+              child: Container(
+                height: sheetHeight,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: sheet,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(28),
                   ),
-                  child: SafeArea(
-                    top: false,
-                    child: Stack(
-                      children: [
-                        // contenido
-                        SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 90),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x22000000),
+                      blurRadius: 24,
+                      offset: Offset(0, -10),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: SingleChildScrollView(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
                           child: Form(
                             key: _formKey,
                             child: Column(
@@ -321,10 +372,9 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                                     Expanded(
                                       child: Text(
                                         'Editar movimiento',
-                                        style: t.textTheme.headlineSmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w800,
-                                            ),
+                                        style: t.textTheme.headlineSmall?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                        ),
                                       ),
                                     ),
                                     IconButton(
@@ -447,10 +497,7 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                                 const SizedBox(height: 6),
                                 TextFormField(
                                   readOnly: true,
-                                  controller: TextEditingController(
-                                    text:
-                                        '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
-                                  ),
+                                  controller: fechaController,
                                   decoration:
                                       _lightInput(
                                         'Selecciona la fecha',
@@ -460,27 +507,7 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                                           Icons.expand_more_rounded,
                                         ),
                                       ),
-                                  onTap: () async {
-                                    final picked = await showDatePicker(
-                                      context: context,
-                                      initialDate: selectedDate,
-                                      firstDate: DateTime(2000),
-                                      lastDate: DateTime(2100),
-                                      builder: (_, child) {
-                                        return Theme(
-                                          data: Theme.of(context).copyWith(
-                                            colorScheme: ColorScheme.light(
-                                              primary: primary,
-                                            ),
-                                          ),
-                                          child: child!,
-                                        );
-                                      },
-                                    );
-                                    if (picked != null) {
-                                      setState(() => selectedDate = picked);
-                                    }
-                                  },
+                                  onTap: _seleccionarFecha,
                                 ),
                                 const SizedBox(height: 14),
 
@@ -505,63 +532,77 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
                             ),
                           ),
                         ),
+                      ),
 
-                        // Botones fijos abajo
-                        Positioned(
-                          left: 20,
-                          right: 20,
-                          bottom: 20,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, false),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: primary,
-                                    side: BorderSide(color: primary),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
-                                    ),
-                                  ),
-                                  child: const Text('Cancelar'),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: _actualizar,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: primary,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 14,
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                  child: const Text(
-                                    'Actualizar',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                      Container(
+                        padding: EdgeInsets.fromLTRB(
+                          20,
+                          12,
+                          20,
+                          20 + media.padding.bottom,
                         ),
-                      ],
-                    ),
+                        decoration: BoxDecoration(
+                          color: sheet,
+                          border: Border(
+                            top: BorderSide(color: border.withOpacity(.7)),
+                          ),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x12000000),
+                              blurRadius: 10,
+                              offset: Offset(0, -2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: primary,
+                                  side: BorderSide(color: primary),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                ),
+                                child: const Text('Cancelar'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _actualizar,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: primary,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: const Text(
+                                  'Actualizar',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -619,4 +660,5 @@ class _SegmentChip extends StatelessWidget {
     );
   }
 }
+
 

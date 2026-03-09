@@ -1,10 +1,10 @@
 ﻿import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
-import 'package:flutter/material.dart';
+import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:app_gestion_gastos/utils/app_storage.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
-
-import 'package:app_gestion_gastos/pages/login.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,10 +13,8 @@ void main() async {
   final storage = AppStorage();
   final token = await storage.read(key: 'token');
 
-  // válido solo si existe y NO está expirado
   final isLoggedIn = token != null && !JwtDecoder.isExpired(token);
 
-  // Limpia si está vencido
   if (!isLoggedIn) {
     await storage.delete(key: 'token');
   }
@@ -35,8 +33,17 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
+      locale: const Locale('es', 'ES'),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('es', 'ES'),
+        Locale('es', 'PE'),
+      ],
       home: isLoggedIn ? const DashboardPage() : const LoginPage(),
     );
   }
 }
-

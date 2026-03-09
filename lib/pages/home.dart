@@ -171,9 +171,9 @@ class _HomePageState extends State<HomePage> {
               if (confirm == true) {
                 await storage.deleteAll(); // Borra todos los datos guardados
                 if (!mounted) return;
-                Navigator.pushReplacement(
-                  context,
+                Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (context) => LoginPage()),
+                  (route) => false,
                 );
               }
             },
@@ -185,7 +185,23 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Hola, $nombre', style: TextStyle(fontSize: 23)),
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Hola, $nombre', style: const TextStyle(fontSize: 23)),
+                ),
+                IconButton(
+                  tooltip: 'Datos personales',
+                  icon: const Icon(Icons.person_outline),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const EditarCuentaPage()),
+                    );
+                  },
+                ),
+              ],
+            ),
 
             SizedBox(height: 16),
             Card(
@@ -207,7 +223,7 @@ class _HomePageState extends State<HomePage> {
                           Expanded(
                             child: InkWell(
                               onTap: () {
-                                Navigator.pushReplacement(
+                                Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) => Gastosdiarios(),
@@ -463,7 +479,7 @@ class _HomePageState extends State<HomePage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.pushReplacement(
+          Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => EditarCuentaPage()),
           );

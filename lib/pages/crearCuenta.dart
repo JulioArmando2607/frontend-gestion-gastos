@@ -2,6 +2,7 @@
 import 'package:app_gestion_gastos/api/services.dart';
 import 'package:app_gestion_gastos/pages/Dashboard/DashboardPage.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
+import 'package:app_gestion_gastos/widgets/email_autocomplete_field.dart';
 import 'package:flutter/material.dart';
 import 'package:app_gestion_gastos/utils/app_storage.dart';
 
@@ -46,7 +47,7 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
 
     final res = await _service.register({
       'nombre': _nombreController.text.trim(),
-      'email': _emailController.text.trim(),
+      'email': normalizeEmailInput(_emailController.text),
       'password': _passwordController.text,
     });
     print(res);
@@ -68,7 +69,7 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
     setState(() => _isLoading = true);
     try {
       final response = await _service.login({
-        'email': _emailController.text.trim(),
+        'email': normalizeEmailInput(_emailController.text),
         'password': _passwordController.text,
       });
       if (response.statusCode == 200) {
@@ -95,10 +96,14 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
   }
 
   void _cancelar() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginPage()),
-    );
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+      );
+    }
   }
 
   @override
@@ -147,15 +152,16 @@ class _CrearCuentaPageState extends State<CrearCuentaPage> {
                       const SizedBox(height: 14),
 
                       // Email
-                      TextFormField(
+                      EmailAutocompleteField(
                         controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
                         decoration: _input('Correo electrónico', Icons.email),
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
                             return 'Ingrese su correo electrónico';
                           }
-                          final ok = RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v);
+                          final ok = RegExp(
+                            r'^[^@]+@[^@]+\.[^@]+',
+                          ).hasMatch(normalizeEmailInput(v));
                           return ok ? null : 'Correo inválido';
                         },
                       ),

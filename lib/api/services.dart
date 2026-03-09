@@ -9,7 +9,7 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 class ApiService {
   ApiService() : storage = const AppStorage();
 
-  final String baseUrl = 'http://${Environment.serverIP}:8081/api';
+  final String baseUrl = '${Environment.serverIP}/service/api';
   final AppStorage storage;
 
   Future<Map<String, String>> _authHeaders(
@@ -75,14 +75,26 @@ class ApiService {
     return res;
   }
 
+  Future<http.Response> forgotPassword(String email) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/auth/forgot-password'),
+      headers: const {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode({'email': email}),
+    );
+    return res;
+  }
+
   Future<http.Response> editarCuenta(
     BuildContext context,
     idUsuario,
-    Map<String, String> body,
+    Map<String, dynamic> body,
   ) async {
     final res = await http.post(
-      Uri.parse('$baseUrl/usuario/editar/$idUsuario'),
-      headers: await _authHeaders(context),
+      Uri.parse('$baseUrl/usuario/actulizar-persona'),
+      headers: await _authHeaders(context, jsonBody: true),
 
       body: jsonEncode(body),
     );
@@ -166,7 +178,7 @@ class ApiService {
 
   Future<http.Response> usuario(BuildContext context, String id) async {
     final res = await http.get(
-      Uri.parse('$baseUrl/usuario/$id'),
+      Uri.parse('$baseUrl/usuario/$id/persona'),
       headers: await _authHeaders(context),
     );
     await _handle401(context, res);
@@ -232,6 +244,18 @@ class ApiService {
       Uri.parse('$baseUrl/gastos-personalizados/crear-categoria'),
       headers: await _authHeaders(context, jsonBody: true),
       body: jsonEncode(map),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+
+  Future<http.Response> eliminarCategoriaPersonalizada(
+    BuildContext context,
+    int idCategoria,
+  ) async {
+    final res = await http.delete(
+      Uri.parse('$baseUrl/gastos-personalizados/eliminar-categoria/$idCategoria'),
+      headers: await _authHeaders(context),
     );
     await _handle401(context, res);
     return res;
@@ -368,6 +392,31 @@ class ApiService {
       headers: await _authHeaders(context),
     );
     await _handle401(context, res);
+    print(res.body);
+    return res;
+  }
+
+  Future<http.Response> getVerProyeccionCompartida(
+    BuildContext context,
+    int idProyeccion,
+  ) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/compartir-proyeccion/ver-proyeccion/$idProyeccion'),
+      headers: await _authHeaders(context),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+
+  Future<http.Response> getDetalleProyeccionCompartida(
+    BuildContext context,
+    int idProyeccion,
+  ) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/compartir-proyeccion/detalle-proyeccion/$idProyeccion'),
+      headers: await _authHeaders(context),
+    );
+    await _handle401(context, res);
     return res;
   }
 
@@ -387,12 +436,182 @@ class ApiService {
     return res;
   }
 
+  Future<http.Response> listarMisProyecciones(BuildContext context) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/proyeccion-mensual/mis-proyecciones'),
+      headers: await _authHeaders(context),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+
+  Future<http.Response> listarProyeccionesCompartidas(
+    BuildContext context,
+  ) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/proyeccion-mensual/compartidas-conmigo'),
+      headers: await _authHeaders(context),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+
+  Future<http.Response> listarProyeccionesRecibidas(
+    BuildContext context, {
+    required int idUsuario,
+  }) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/compartir-proyeccion/recibidas/$idUsuario'),
+      headers: await _authHeaders(context),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+
+  Future<http.Response> compartirProyeccionPorCorreo(
+    BuildContext context, {
+    required int idProyeccionSeleccionada,
+    required int ownerUserId,
+    required int anio,
+    required int mes,
+    required String correo,
+  }) async {
+    final body = {
+      'usuarioIdAccion': ownerUserId,
+      'idProyeccion': idProyeccionSeleccionada,
+     // 'idProyeccion': mes,
+      'correoDestinatario': correo,
+    };
+    print(body);
+
+    final res = await http.post(
+      Uri.parse('$baseUrl/compartir-proyeccion'),
+      headers: await _authHeaders(context, jsonBody: true),
+      body: jsonEncode(body),
+    );
+    print(res.body);
+    await _handle401(context, res);
+    return res;
+  }
+
+  Future<http.Response> listarCorreosCompartidos(
+    BuildContext context, {
+    required int ownerUserId,
+    required int anio,
+    required int mes,
+  }) async {
+    final res = await http.get(
+      Uri.parse(
+        '$baseUrl/proyeccion-mensual/compartidos/$ownerUserId/$anio/$mes',
+      ),
+      headers: await _authHeaders(context),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+
+  Future<http.Response> listarProyeccionesEnviadas(
+    BuildContext context, {
+    required int ownerUserId,
+  }) async {
+    print(ownerUserId);
+    final res = await http.get(
+      Uri.parse('$baseUrl/compartir-proyeccion/enviadas/$ownerUserId'),
+      headers: await _authHeaders(context),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+
+  Future<http.Response> revocarCompartidoPorCorreo(
+    BuildContext context, {
+    required int ownerUserId,
+    required int anio,
+    required int mes,
+    required String correo,
+  }) async {
+    final body = {
+      'ownerUserId': ownerUserId,
+      'anio': anio,
+      'mes': mes,
+      'correo': correo,
+    };
+    final res = await http.delete(
+      Uri.parse('$baseUrl/proyeccion-mensual/revocar-compartido'),
+      headers: await _authHeaders(context, jsonBody: true),
+      body: jsonEncode(body),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+
   Future<http.Response> mostrarBotones(
     String codigoBoton,
     BuildContext context,
   ) async {
     final res = await http.get(
       Uri.parse('$baseUrl/auth/mostar-boton/${codigoBoton}'),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+
+  Future<http.Response> cerrarProyeccion(
+    BuildContext context,
+    int idUsuario,
+    int yearActual,
+    int mesActual,
+  ) async {
+    final url = Uri.parse(
+      '$baseUrl/proyeccion-mensual/cerrar/$idUsuario/$yearActual/$mesActual',
+    );
+    final res = await http.post(
+      url,
+      headers: await _authHeaders(context),
+    );
+    await _handle401(context, res);
+    return res;
+  }
+
+  Future<http.Response> editarMontoCategoriaProyeccion(
+    BuildContext context,
+    int idUsuario,
+    Map<String, dynamic> body,
+  ) async {
+    final res = await http.post(
+      Uri.parse(
+        '$baseUrl/proyeccion-mensual/editar-monto-categoria/$idUsuario',
+      ),
+      headers: await _authHeaders(context, jsonBody: true),
+      body: jsonEncode(body),
+    );
+    await _handle401(context, res);
+
+    // Fallback para backend antiguo que aun usa el endpoint general.
+    if (res.statusCode == 404 || res.statusCode == 405) {
+      final fallback = await http.post(
+        Uri.parse(
+          '$baseUrl/proyeccion-mensual/nueva-proyeccion-categoria/$idUsuario',
+        ),
+        headers: await _authHeaders(context, jsonBody: true),
+        body: jsonEncode(body),
+      );
+      await _handle401(context, fallback);
+      return fallback;
+    }
+
+    return res;
+  }
+
+  Future<http.Response> editarMontoCategoriaCompartida(
+    BuildContext context,
+    Map<String, dynamic> body,
+  ) async {
+    print(body);
+    final res = await http.post(
+      Uri.parse('$baseUrl/compartir-proyeccion/editar-monto-categoria'),
+      headers: await _authHeaders(context, jsonBody: true),
+      body: jsonEncode(body),
     );
     await _handle401(context, res);
     return res;
