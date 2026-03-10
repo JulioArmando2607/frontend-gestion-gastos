@@ -2,18 +2,24 @@
 
 import 'package:app_gestion_gastos/api/services.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
-class ReporteMensualModal extends StatefulWidget {
+class ReporteMensualPage extends StatefulWidget {
+  const ReporteMensualPage({super.key, required this.idCard});
+
   final int idCard;
 
-  const ReporteMensualModal({super.key, required this.idCard});
-
   @override
-  State<ReporteMensualModal> createState() => _ReporteMensualModalState();
+  State<ReporteMensualPage> createState() => _ReporteMensualPageState();
 }
 
-class _ReporteMensualModalState extends State<ReporteMensualModal> {
+class _ReporteMensualPageState extends State<ReporteMensualPage> {
   final ApiService service = ApiService();
+  final NumberFormat _currency = NumberFormat.currency(
+    locale: 'es_PE',
+    symbol: 'S/ ',
+    decimalDigits: 2,
+  );
 
   List<Map<String, dynamic>> allData = [];
   List<String> anios = [];
@@ -22,14 +28,13 @@ class _ReporteMensualModalState extends State<ReporteMensualModal> {
   String? selectedAnio;
   String? selectedMes;
 
-  bool mostrarDetalle = false;
-  String tipoDetalle = '';
+  bool isLoading = true;
+  String? errorMessage;
 
-  List<Map<String, dynamic>> ingresosYGastos = [];
   List<Map<String, dynamic>> detalleGasto = [];
   List<Map<String, dynamic>> detalleIngreso = [];
 
-  final List<String> meses = [
+  final List<String> meses = const [
     'Enero',
     'Febrero',
     'Marzo',
@@ -52,180 +57,329 @@ class _ReporteMensualModalState extends State<ReporteMensualModal> {
     });
   }
 
+  double get totalIngresos => detalleIngreso.fold<double>(
+    0,
+    (sum, e) => sum + _toDouble(e['monto']),
+  );
+
+  double get totalGastos => detalleGasto.fold<double>(
+    0,
+    (sum, e) => sum + _toDouble(e['monto']),
+  );
+
+  double get balance => totalIngresos - totalGastos;
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: MediaQuery.of(context).viewInsets,
-      child: DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (context, scrollController) => SingleChildScrollView(
-          controller: scrollController,
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Reporte Mensual',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              Row(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Reporte mensual'),
+      ),
+      body: RefreshIndicator(
+        onRefresh: () => _listarReporteCard(widget.idCard),
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                padding: const EdgeInsets.all(16),
                 children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: selectedAnio,
-                      decoration: const InputDecoration(labelText: 'AÑO'),
-                      items: anios
-                          .map(
-                            (anio) => DropdownMenuItem(
-                              value: anio,
-                              child: Text(anio),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() => selectedAnio = value);
-                        if (value != null) _filtrarMesesYActualizarUI(value);
-                      },
+                  _buildInfoCard(),
+                  const SizedBox(height: 16),
+                  _buildFilters(),
+                  const SizedBox(height: 16),
+                  if (errorMessage != null) _buildErrorCard(errorMessage!),
+                  if (errorMessage == null && selectedMes == null)
+                    _buildHintCard('Selecciona un mes para ver el detalle.'),
+                  if (errorMessage == null && selectedMes != null) ...[
+                    _buildSummaryCards(),
+                    const SizedBox(height: 16),
+                    _buildDetalleSection(
+                      titulo: 'Ingresos',
+                      color: Colors.green,
+                      detalle: detalleIngreso,
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: selectedMes,
-                      decoration: const InputDecoration(labelText: 'MES'),
-                      items: mesesFiltrados.map((mesNum) {
-                        final index = int.parse(mesNum) - 1;
-                        return DropdownMenuItem(
-                          value: mesNum,
-                          child: Text(meses[index]),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() => selectedMes = value);
-                        if (selectedAnio != null && value != null) {
-                          _filtrarIngresosYGastos(selectedAnio!, value);
-                        }
-                      },
+                    const SizedBox(height: 12),
+                    _buildDetalleSection(
+                      titulo: 'Gastos',
+                      color: Colors.red,
+                      detalle: detalleGasto,
                     ),
-                  ),
+                  ],
+                  const SizedBox(height: 16),
                 ],
               ),
-              const SizedBox(height: 24),
-              ...ingresosYGastos.map(
-                (e) => ListTile(
-                  title: Text(e['tipo'].toString()),
-                  trailing: Text(e['monto'].toString()),
-                  onTap: () {
-                    setState(() {
-                      mostrarDetalle = true;
-                      tipoDetalle = e['tipo'].toString();
-                    });
-                  },
-                ),
-              ),
-              if (mostrarDetalle && tipoDetalle == 'GASTO')
-                _buildDetalleTable(detalleGasto, 'Detalle de Gasto'),
-              if (mostrarDetalle && tipoDetalle == 'INGRESO')
-                _buildDetalleTable(detalleIngreso, 'Detalle de Ingreso'),
-            ],
-          ),
-        ),
       ),
     );
   }
 
-  Widget _buildDetalleTable(List<Map<String, dynamic>> detalle, String titulo) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildInfoCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.indigo.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.indigo.shade100),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.insights_rounded),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Revisa tus ingresos y gastos por mes con mayor detalle.',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilters() {
+    return Row(
       children: [
-        const Divider(),
-        Text(titulo, style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 12),
-        Table(
-          border: TableBorder.all(),
-          children: [
-            const TableRow(
-              children: [
-                Padding(
-                  padding: EdgeInsets.all(8.0),
-                  child: Text(
-                    'Item',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            initialValue: selectedAnio,
+            decoration: const InputDecoration(labelText: 'Año'),
+            items: anios
+                .map(
+                  (anio) => DropdownMenuItem(
+                    value: anio,
+                    child: Text(anio),
                   ),
-                ),
-                Padding(
-                  padding: EdgeInsets.all(8.0),
-                  child: Text(
-                    'Monto',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            ...detalle.map(
-              (e) => TableRow(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Text(e['item'].toString()),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Text(e['monto'].toString()),
-                  ),
-                ],
-              ),
-            ),
-          ],
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => selectedAnio = value);
+              _filtrarMesesYActualizarUI(value);
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            initialValue: selectedMes,
+            decoration: const InputDecoration(labelText: 'Mes'),
+            items: mesesFiltrados.map((mesNum) {
+              final index = int.parse(mesNum) - 1;
+              return DropdownMenuItem(
+                value: mesNum,
+                child: Text(meses[index]),
+              );
+            }).toList(),
+            onChanged: (value) {
+              setState(() => selectedMes = value);
+              if (selectedAnio != null && value != null) {
+                _filtrarIngresosYGastos(selectedAnio!, value);
+              }
+            },
+          ),
         ),
       ],
     );
   }
 
+  Widget _buildSummaryCards() {
+    final balanceColor = balance >= 0 ? Colors.teal : Colors.orange;
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        _summaryCard('Ingresos', totalIngresos, Colors.green),
+        _summaryCard('Gastos', totalGastos, Colors.red),
+        _summaryCard('Balance', balance, balanceColor),
+      ],
+    );
+  }
+
+  Widget _summaryCard(String label, double value, Color color) {
+    return Container(
+      width: 170,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(
+            _currency.format(value),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetalleSection({
+    required String titulo,
+    required Color color,
+    required List<Map<String, dynamic>> detalle,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.circle, color: color, size: 12),
+              const SizedBox(width: 8),
+              Text(
+                '$titulo',//(${detalle.length})
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (detalle.isEmpty)
+            Text(
+              'Sin registros en este mes.',
+              style: TextStyle(color: Colors.grey.shade600),
+            )
+          else
+            ...detalle.map((e) {
+              final item = _itemName(e);
+              final monto = _currency.format(_toDouble(e['monto']));
+              final fecha = _formatFecha(e['fecha']?.toString());
+              return ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(item),
+                subtitle: Text(fecha),
+                trailing: Text(
+                  monto,
+                  style: TextStyle(fontWeight: FontWeight.w700, color: color),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHintCard(String text) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Text(text),
+    );
+  }
+
+  Widget _buildErrorCard(String text) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline_rounded, color: Colors.red.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text)),
+        ],
+      ),
+    );
+  }
+
   Future<void> _listarReporteCard(int idCard) async {
-    final resGasto = await service.listarReporteCard(context, idCard);
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
 
-    if (resGasto.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(resGasto.body);
-      final List<Map<String, dynamic>> registros = data
-          .map((e) => Map<String, dynamic>.from(e))
-          .toList();
+    try {
+      final res = await service.listarReporteCard(context, idCard);
+      if (res.statusCode != 200) {
+        setState(() {
+          errorMessage = 'No se pudo cargar el reporte (${res.statusCode}).';
+          isLoading = false;
+        });
+        return;
+      }
 
-      final Set<String> aniosUnicos = registros
+      final List<dynamic> data = jsonDecode(res.body);
+      final registros = data.map((e) => Map<String, dynamic>.from(e)).toList();
+
+      if (registros.isEmpty) {
+        setState(() {
+          allData = [];
+          anios = [];
+          mesesFiltrados = [];
+          selectedAnio = null;
+          selectedMes = null;
+          detalleIngreso = [];
+          detalleGasto = [];
+          errorMessage = 'No hay información para mostrar en reportes.';
+          isLoading = false;
+        });
+        return;
+      }
+
+      final aniosUnicos = registros
           .map((e) => DateTime.parse(e['fecha']).year.toString())
-          .toSet();
+          .toSet()
+          .toList()
+        ..sort((a, b) => b.compareTo(a));
+
+      final anioInicial = aniosUnicos.first;
 
       setState(() {
         allData = registros;
-        anios = aniosUnicos.toList()..sort();
-        selectedAnio = anios.first;
+        anios = aniosUnicos;
+        selectedAnio = anioInicial;
+        isLoading = false;
       });
 
-      _filtrarMesesYActualizarUI(selectedAnio!);
+      _filtrarMesesYActualizarUI(anioInicial);
+    } catch (_) {
+      setState(() {
+        errorMessage = 'Ocurrió un error al cargar el reporte.';
+        isLoading = false;
+      });
     }
   }
 
   void _filtrarMesesYActualizarUI(String anio) {
-    final List<Map<String, dynamic>> datosFiltrados = allData
+    final datosFiltrados = allData
         .where((e) => DateTime.parse(e['fecha']).year.toString() == anio)
         .toList();
 
-    final Set<String> mesesUnicos = datosFiltrados
+    final mesesUnicos = datosFiltrados
         .map((e) => DateTime.parse(e['fecha']).month.toString().padLeft(2, '0'))
-        .toSet();
+        .toSet()
+        .toList()
+      ..sort();
+
+    final mesInicial = mesesUnicos.isNotEmpty ? mesesUnicos.last : null;
 
     setState(() {
-      mesesFiltrados = mesesUnicos.toList()..sort();
-      selectedMes = null;
-      ingresosYGastos.clear();
-      detalleGasto.clear();
-      detalleIngreso.clear();
-      mostrarDetalle = false;
+      mesesFiltrados = mesesUnicos;
+      selectedMes = mesInicial;
+      detalleIngreso = [];
+      detalleGasto = [];
+      errorMessage = null;
     });
+
+    if (mesInicial != null) {
+      _filtrarIngresosYGastos(anio, mesInicial);
+    }
   }
 
   void _filtrarIngresosYGastos(String anio, String mes) {
@@ -241,24 +395,31 @@ class _ReporteMensualModalState extends State<ReporteMensualModal> {
     setState(() {
       detalleIngreso = ingresos;
       detalleGasto = gastos;
-
-      ingresosYGastos = [
-        {
-          'tipo': 'INGRESO',
-          'monto': ingresos.fold<int>(
-            0,
-            (sum, e) => sum + ((e['monto'] ?? 0) as num).toInt(),
-          ),
-        },
-        {
-          'tipo': 'GASTO',
-          'monto': gastos.fold<int>(
-            0,
-            (sum, e) => sum + ((e['monto'] ?? 0) as num).toInt(),
-          ),
-        },
-      ];
-      mostrarDetalle = false;
     });
   }
+
+  double _toDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? 0.0;
+  }
+
+  String _itemName(Map<String, dynamic> item) {
+    final name = item['item'] ?? item['categoria'] ?? item['descripcion'] ?? 'Sin nombre';
+    return name.toString();
+  }
+
+  String _formatFecha(String? fecha) {
+    if (fecha == null || fecha.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(fecha);
+      return DateFormat('dd/MM/yyyy').format(dt);
+    } catch (_) {
+      return fecha;
+    }
+  }
+}
+
+// Compatibilidad temporal: mantiene referencias antiguas mientras se migra.
+class ReporteMensualModal extends ReporteMensualPage {
+  const ReporteMensualModal({super.key, required super.idCard});
 }

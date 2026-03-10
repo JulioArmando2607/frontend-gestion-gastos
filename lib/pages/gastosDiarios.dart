@@ -98,6 +98,95 @@ class _GastosdiariosState extends State<Gastosdiarios> {
   final Color primary = const Color(0xFF6C55F9);
   final Color bg = const Color(0xFFF8F3FF);
 
+  Future<void> _abrirEditarMovimientoFlotante(Movimiento movimiento) async {
+    final updated = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => FractionallySizedBox(
+        heightFactor: 0.95,
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: EditarMovimientoPage(
+            movimiento: movimiento,
+            showTopBar: false,
+            showDeleteInTopBar: false,
+          ),
+        ),
+      ),
+    );
+
+    if (updated == true) {
+      obtenerMovimientos();
+      obtenerCarResumen();
+    }
+  }
+
+  Future<void> _abrirNuevoMovimientoFlotante() async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => FractionallySizedBox(
+        heightFactor: 0.95,
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: const NuevoMovimientoPage(showTopBar: false),
+        ),
+      ),
+    );
+
+    if (created == true) {
+      obtenerMovimientos();
+      obtenerCarResumen();
+    }
+  }
+
+  Future<void> _eliminarMovimientoDesdeLista(Movimiento movimiento) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Eliminar movimiento'),
+        content: const Text('¿Deseas eliminar este movimiento?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    final res = await service.eliminarMovimiento(
+      context,
+      movimiento.id.toString(),
+    );
+
+    if (!mounted) return;
+    if (res.statusCode == 200 || res.statusCode == 204) {
+      setState(() {
+        movimientos.removeWhere((e) => e.id == movimiento.id);
+      });
+      obtenerCarResumen();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Movimiento eliminado')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo eliminar (${res.statusCode})')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme);
@@ -206,17 +295,11 @@ class _GastosdiariosState extends State<Gastosdiarios> {
                   monto: m.monto,
                   positivo: ingreso,
                   primary: primary,
-                  onTap: () async {
-                    final created = await Navigator.of(context).push<bool>(
-                      MaterialPageRoute(
-                        builder: (_) => EditarMovimientoPage(movimiento: m),
-                      ),
-                    );
-
-                    if (created == true) {
-                      obtenerMovimientos();
-                      obtenerCarResumen();
-                    }
+                  onEdit: () async {
+                    await _abrirEditarMovimientoFlotante(m);
+                  },
+                  onDelete: () async {
+                    await _eliminarMovimientoDesdeLista(m);
                   },
                 );
               }),
@@ -224,15 +307,7 @@ class _GastosdiariosState extends State<Gastosdiarios> {
         ),
         floatingActionButton: FloatingActionButton.extended(
           onPressed: () async {
-            final created = await Navigator.of(context).push<bool>(
-              MaterialPageRoute(builder: (_) => const NuevoMovimientoPage()),
-            );
-
-            // Si guardó algo, refresca tu lista/resumen
-            if (created == true) {
-              obtenerMovimientos();
-              obtenerCarResumen();
-            }
+            await _abrirNuevoMovimientoFlotante();
           },
           backgroundColor: primary,
           foregroundColor: Colors.white,
@@ -369,14 +444,16 @@ class _MovementTile extends StatelessWidget {
     required this.monto,
     required this.positivo,
     required this.primary,
-    this.onTap,
+    this.onEdit,
+    this.onDelete,
   });
 
   final String titulo, categoria, fecha;
   final double monto;
   final bool positivo;
   final Color primary;
-  final VoidCallback? onTap;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -384,74 +461,117 @@ class _MovementTile extends StatelessWidget {
     final color = positivo ? Colors.green : Colors.red;
 
     return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: primary.withOpacity(.12),
-                  shape: BoxShape.circle,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: primary.withOpacity(.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    positivo
+                        ? Icons.trending_up_rounded
+                        : Icons.trending_down_rounded,
+                    color: primary,
+                  ),
                 ),
-                child: Icon(
-                  positivo
-                      ? Icons.trending_up_rounded
-                      : Icons.trending_down_rounded,
-                  color: primary,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      titulo,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      categoria,
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.edit_rounded,
-                        size: 18,
-                        color: Colors.grey.shade700,
+                      Text(
+                        titulo,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        categoria,
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    amount,
-                    style: TextStyle(fontWeight: FontWeight.w700, color: color),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      amount,
+                      style: TextStyle(fontWeight: FontWeight.w700, color: color),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      fecha,
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: primary.withOpacity(.12),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: primary.withOpacity(.35)),
+                    ),
+                    child: IconButton(
+                      onPressed: onEdit,
+                      tooltip: 'Editar',
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 30,
+                        minHeight: 30,
+                      ),
+                      icon: Icon(
+                        Icons.edit_rounded,
+                        size: 16,
+                        color: primary,
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    fecha,
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  const SizedBox(width: 6),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(.10),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.red.withOpacity(.35)),
+                    ),
+                    child: IconButton(
+                      onPressed: onDelete,
+                      tooltip: 'Eliminar',
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 30,
+                        minHeight: 30,
+                      ),
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 16,
+                        color: Colors.red,
+                      ),
+                    ),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

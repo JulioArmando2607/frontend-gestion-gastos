@@ -9,7 +9,7 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 class ApiService {
   ApiService() : storage = const AppStorage();
 
-  final String baseUrl = '${Environment.serverIP}/service/api';
+  final String baseUrl = '${Environment.serverIP}/api';
   final AppStorage storage;
 
   Future<Map<String, String>> _authHeaders(
@@ -237,6 +237,42 @@ class ApiService {
     );
     await _handle401(context, res);
     return res;
+  }
+
+  Future<http.Response> editarCardPersonalizado(
+    BuildContext context,
+    int idCard,
+    Map<String, String?> body,
+  ) async {
+    final headers = await _authHeaders(context, jsonBody: true);
+    final payload = jsonEncode(body);
+
+    final primary = await http.put(
+      Uri.parse('$baseUrl/gastos-personalizados/editar-card/$idCard'),
+      headers: headers,
+      body: payload,
+    );
+    await _handle401(context, primary);
+  /*  if (primary.statusCode != 404 && primary.statusCode != 405) return primary;
+
+    final fallback1 = await http.post(
+      Uri.parse('$baseUrl/gastos-personalizados/actualizar-gasto-personalizado/$idCard'),
+      headers: headers,
+      body: payload,
+    );
+    await _handle401(context, fallback1);
+    if (fallback1.statusCode != 404 && fallback1.statusCode != 405) {
+      return fallback1;
+    }
+
+    final fallback2 = await http.put(
+      Uri.parse('$baseUrl/gastos-personalizados/card-personalizado/$idCard'),
+      headers: headers,
+      body: payload,
+    );
+    await _handle401(context, fallback2);
+  */
+    return primary;
   }
 
   Future crearCategoria(BuildContext context, Map<String, String> map) async {
@@ -554,6 +590,32 @@ class ApiService {
     );
     await _handle401(context, res);
     return res;
+  }
+
+  Future<http.Response> eliminarCardPersonalizado(
+    BuildContext context,
+    int idCard,
+  ) async {
+    final headers = await _authHeaders(context);
+
+    // Endpoint principal esperado para card personalizado.
+    final primary = await http.delete(
+      Uri.parse('$baseUrl/gastos-personalizados/eliminar-card/$idCard'),
+      headers: headers,
+    );
+    await _handle401(context, primary);
+    return primary;
+  }
+
+  Future<bool> mostrarBotonHabilitado(
+    String codigoBoton,
+    BuildContext context,
+  ) async {
+    final res = await mostrarBotones(codigoBoton, context);
+    if (res.statusCode < 200 || res.statusCode >= 300) return false;
+
+    final value = res.body.trim().toLowerCase();
+    return value == 'true' || value == '1';
   }
 
   Future<http.Response> cerrarProyeccion(

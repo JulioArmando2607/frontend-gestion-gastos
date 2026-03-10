@@ -9,7 +9,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
 class NuevoMovimientoPage extends StatefulWidget {
-  const NuevoMovimientoPage({super.key});
+  const NuevoMovimientoPage({
+    super.key,
+    this.showTopBar = true,
+  });
+
+  final bool showTopBar;
 
   @override
   State<NuevoMovimientoPage> createState() => _NuevoMovimientoPageState();
@@ -189,13 +194,14 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
     );
 
     final size = media.size;
-    final sheetHeight = size.height * 0.92;
+    final sheetHeight = size.height * (widget.showTopBar ? 0.92 : 1.0);
 
     return Theme(
       data: t,
       child: Scaffold(
         resizeToAvoidBottomInset: true,
-        appBar: AppBar(
+        appBar: widget.showTopBar
+            ? AppBar(
           leading: IconButton(
             onPressed: () {
               if (Navigator.canPop(context)) {
@@ -237,7 +243,8 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
               },
             ),
           ],
-        ),
+        )
+            : null,
         body: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -250,7 +257,7 @@ class _NuevoMovimientoPageState extends State<NuevoMovimientoPage> {
             alignment: Alignment.bottomCenter,
             child: FractionallySizedBox(
               widthFactor: 1,
-              heightFactor: 0.92,
+              heightFactor: widget.showTopBar ? 0.92 : 1.0,
               child: Container(
                 height: sheetHeight,
                 width: double.infinity,

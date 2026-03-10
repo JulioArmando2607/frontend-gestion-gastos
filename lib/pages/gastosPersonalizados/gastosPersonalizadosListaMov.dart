@@ -3,7 +3,6 @@ import 'package:app_gestion_gastos/clases/MovimientoPersonalizado.dart';
 import 'package:app_gestion_gastos/pages/gastosPersonalizados/ReporteMensualModal.dart';
 import 'package:app_gestion_gastos/pages/gastosPersonalizados/gastoPersonalizadoRegMovimiento.dart';
 import 'package:app_gestion_gastos/pages/gastosPersonalizados/gastosPersonalizados.dart';
-import 'package:app_gestion_gastos/pages/gastosPersonalizados/Config/gastosPersonalizadosConfiguracion.dart';
 import 'package:app_gestion_gastos/pages/login.dart';
 import 'package:app_gestion_gastos/utils/ui_helpers.dart';
 import 'package:flutter/material.dart';
@@ -12,7 +11,6 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 
 Color hexToColor(String hex) {
   var c = hex.replaceAll('#', '');
@@ -274,192 +272,131 @@ class _GastoPersonalizadoHomeState extends State<GastoPersonalizadoHome> {
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
           children: [
-            // Resumen card
             _BalanceCard(
               primary: colorHex,
               saldo: montoSaldoTotal,
               ingresos: montoIngresos,
               gastos: montoGastos,
+              onReporte: _abrirReporteMensual,
+              onAgregarCategoria: () {
+                _abrirAgregarCategoriaRapido();
+              },
             ),
             const SizedBox(height: 16),
-
             if (movimientos.isEmpty)
               _EmptyState(primary: colorHex)
             else
               ...List.generate(movimientos.length, (i) {
                 final m = movimientos[i];
                 final ingreso = m.tipo == 'INGRESO';
-                return Dismissible(
-                  key: Key(m.id.toString()),
-                  background: _dismissBg(
-                    Colors.blue,
-                    Icons.edit_rounded,
-                    Alignment.centerLeft,
-                  ),
-                  secondaryBackground: _dismissBg(
-                    Colors.red,
-                    Icons.delete_rounded,
-                    Alignment.centerRight,
-                  ),
-                  confirmDismiss: (dir) async {
-                    if (dir == DismissDirection.endToStart) {
-                      final ok = await showDialog<bool>(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          title: const Text('Confirmar eliminación'),
-                          content: const Text('¿Eliminar este movimiento?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancelar'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Eliminar'),
-                            ),
-                          ],
-                        ),
-                      );
-                      return ok ?? false;
-                    } else if (dir == DismissDirection.startToEnd) {
-                      final creado = await showModalBottomSheet<bool>(
-                        context: context,
-                        isScrollControlled: true,
-                        backgroundColor: Colors.transparent,
-                        builder: (_) => GastoPersonalizadoRegMovimientoWidget(
-                          idCard: widget.idCard,
-                          idMovimiento: m.id,
-                        ),
-                      );
+                return _MovementTile(
+                  titulo: m.descripcion,
+                  categoria: m.categoria,
+                  fecha: m.fecha,
+                  monto: m.monto,
+                  positivo: ingreso,
+                  primary: colorHex,
+                  onEdit: () async {
+                    final creado = await showModalBottomSheet<bool>(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (_) => GastoPersonalizadoRegMovimientoWidget(
+                        idCard: widget.idCard,
+                        idMovimiento: m.id,
+                      ),
+                    );
 
-                      if (creado == true) {
-                        obtenerCardPersonalizado();
-                        obtenerMovimientos();
-                      }
-                      //  return false;
-                    }
-                    return null;
-                  },
-                  onDismissed: (dir) async {
-                    if (dir == DismissDirection.endToStart) {
-                      await eliminarMovimiento(m.id);
-                      setState(() {
-                        movimientos.removeAt(i);
-                        obtenerCardPersonalizado();
-                        obtenerMovimientos();
-                      });
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Movimiento eliminado')),
-                      );
+                    if (creado == true) {
+                      obtenerCardPersonalizado();
+                      obtenerMovimientos();
                     }
                   },
-                  child: _MovementTile(
-                    titulo: m.descripcion,
-                    categoria: m.categoria,
-                    fecha: m.fecha,
-                    monto: m.monto,
-                    positivo: ingreso,
-                    primary: colorHex,
-                  ),
+                  onDelete: () async {
+                    final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text('Eliminar movimiento'),
+                        content: const Text(
+                          '¿Estás seguro de eliminar este movimiento?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancelar'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Eliminar'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (ok != true) return;
+
+                    await eliminarMovimiento(m.id);
+                    if (!mounted) return;
+                    setState(() {
+                      movimientos.removeWhere((mov) => mov.id == m.id);
+                    });
+                    obtenerCardPersonalizado();
+                    obtenerMovimientos();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Movimiento eliminado')),
+                    );
+                  },
                 );
               }),
-            const SizedBox(
-              height: 100,
-            ), // 👈 Espacio extra para que el FAB no tape
+            const SizedBox(height: 100),
           ],
         ),
-        floatingActionButton: SpeedDial(
-          icon: Icons.add,
-          activeIcon: Icons.close,
+        floatingActionButton: FloatingActionButton.extended(
           backgroundColor: colorHex,
           foregroundColor: Colors.white,
-          spacing: 10,
-          spaceBetweenChildren: 6,
-          children: [
-            SpeedDialChild(
-              child: const Icon(
-                Icons.monetization_on_rounded,
-                color: Colors.green,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('Agregar movimiento'),
+          onPressed: () async {
+            await _cargarCategorias(widget.idCard);
+
+            if (!isCategoria) {
+              await showDialog(
+                context: context,
+                builder: (ctx) => const AlertDialog(
+                  title: Text('No hay categorías'),
+                  content: Text(
+                    'Primero debes registrar al menos una categoría.',
+                  ),
+                ),
+              );
+              return;
+            }
+
+            final creado = await showModalBottomSheet<bool>(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => GastoPersonalizadoRegMovimientoWidget(
+                idCard: widget.idCard,
+                idMovimiento: 0,
               ),
-              label: 'Registrar movimiento',
-              onTap: () async {
-                await _cargarCategorias(widget.idCard);
+            );
 
-                if (!isCategoria) {
-                  await showDialog(
-                    context: context,
-                    builder: (ctx) => const AlertDialog(
-                      title: Text('No hay categorías'),
-                      content: Text(
-                        'Primero debes registrar al menos una categoría.',
-                      ),
-                    ),
-                  );
-                  return;
-                }
-
-                final creado = await showModalBottomSheet<bool>(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (_) => GastoPersonalizadoRegMovimientoWidget(
-                    idCard: widget.idCard,
-                    idMovimiento: 0,
-                  ),
-                );
-
-                if (creado == true) {
-                  obtenerCardPersonalizado();
-                  obtenerMovimientos();
-                }
-              },
-            ),
-            SpeedDialChild(
-              child: const Icon(Icons.category_rounded, color: Colors.blue),
-              label: 'Registrar categoría',
-              onTap: () {
-                //async
-                showModalBottomSheet(
-                  context: context,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(16),
-                    ),
-                  ),
-                  isScrollControlled: true,
-                  builder: (context) => CategoriasPage(idCard: widget.idCard),
-                );
-              },
-            ),
-            SpeedDialChild(
-              child: const Icon(
-                Icons.insert_chart_rounded,
-                color: Colors.orange,
-              ),
-              label: 'Ver reporte mensual',
-              onTap: () {
-                showModalBottomSheet(
-                  context: context,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(16),
-                    ),
-                  ),
-                  isScrollControlled: true,
-                  //  builder: (_) => ReporteMensualModal(idCard: widget.idCard),
-                  builder: (context) =>
-                      ReporteMensualModal(idCard: widget.idCard),
-                );
-              },
-            ),
-          ],
+            if (creado == true) {
+              obtenerCardPersonalizado();
+              obtenerMovimientos();
+            }
+          },
         ),
       ),
     );
   }
 
   Future<void> _cargarCategorias(int idCard) async {
+    isCategoria = false;
     final resGasto = await service.obtenerCategoriaPersonalizadoxTipo(
       context,
       idCard,
@@ -492,15 +429,395 @@ class _GastoPersonalizadoHomeState extends State<GastoPersonalizadoHome> {
     print('¿Hay alguna categoría?: $isCategoria');
   }
 
-  Widget _dismissBg(Color c, IconData icon, Alignment align) => Container(
-    alignment: align,
-    padding: const EdgeInsets.symmetric(horizontal: 20),
-    decoration: BoxDecoration(
-      color: c,
-      borderRadius: BorderRadius.circular(22),
-    ),
-    child: Icon(icon, color: Colors.white),
-  );
+  Future<void> _abrirAgregarCategoriaRapido() async {
+    final nombreCtrl = TextEditingController();
+    String tipoMovimiento = 'GASTO';
+    bool guardando = false;
+    bool cargandoCategorias = true;
+    bool yaCargoCategorias = false;
+    bool huboCambios = false;
+    List<Map<String, dynamic>> categoriasRegistradas = [];
+
+    Future<void> cargarCategoriasModal(void Function(void Function()) setModalState) async {
+      setModalState(() => cargandoCategorias = true);
+      try {
+        final resGasto = await service.obtenerCategoriaPersonalizadoxTipo(
+          context,
+          widget.idCard,
+          'GASTO',
+        );
+        final resIngreso = await service.obtenerCategoriaPersonalizadoxTipo(
+          context,
+          widget.idCard,
+          'INGRESO',
+        );
+
+        final List<Map<String, dynamic>> lista = [];
+        if (resGasto.statusCode == 200) {
+          final data = jsonDecode(resGasto.body) as List;
+          for (final item in data) {
+            final map = Map<String, dynamic>.from(item);
+            lista.add({
+              'id': map['id'],
+              'nombre': (map['nombre'] ?? 'Sin nombre').toString(),
+              'tipo': 'GASTO',
+            });
+          }
+        }
+        if (resIngreso.statusCode == 200) {
+          final data = jsonDecode(resIngreso.body) as List;
+          for (final item in data) {
+            final map = Map<String, dynamic>.from(item);
+            lista.add({
+              'id': map['id'],
+              'nombre': (map['nombre'] ?? 'Sin nombre').toString(),
+              'tipo': 'INGRESO',
+            });
+          }
+        }
+
+        setModalState(() {
+          categoriasRegistradas = lista;
+          cargandoCategorias = false;
+        });
+      } catch (_) {
+        setModalState(() => cargandoCategorias = false);
+      }
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            if (!yaCargoCategorias) {
+              yaCargoCategorias = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!ctx.mounted) return;
+                cargarCategoriasModal(setModalState);
+              });
+            }
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Agregar categoría',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Crea una categoría para organizar mejor tus movimientos.',
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nombreCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre de categoría',
+                      hintText: 'Ejemplo: Comida, Transporte',
+                      prefixIcon: Icon(Icons.category_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Tipo de categoría',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Text('Gasto'),
+                          selected: tipoMovimiento == 'GASTO',
+                          onSelected: (_) =>
+                              setModalState(() => tipoMovimiento = 'GASTO'),
+                          avatar: Icon(
+                            Icons.trending_down_rounded,
+                            size: 18,
+                            color: tipoMovimiento == 'GASTO'
+                                ? Colors.white
+                                : Colors.red.shade600,
+                          ),
+                          selectedColor: Colors.red.shade500,
+                          labelStyle: TextStyle(
+                            color: tipoMovimiento == 'GASTO'
+                                ? Colors.white
+                                : Colors.black87,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ChoiceChip(
+                          label: const Text('Ingreso'),
+                          selected: tipoMovimiento == 'INGRESO',
+                          onSelected: (_) =>
+                              setModalState(() => tipoMovimiento = 'INGRESO'),
+                          avatar: Icon(
+                            Icons.trending_up_rounded,
+                            size: 18,
+                            color: tipoMovimiento == 'INGRESO'
+                                ? Colors.white
+                                : Colors.green.shade700,
+                          ),
+                          selectedColor: Colors.green.shade600,
+                          labelStyle: TextStyle(
+                            color: tipoMovimiento == 'INGRESO'
+                                ? Colors.white
+                                : Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Categorías registradas',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 160),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: cargandoCategorias
+                        ? const Center(
+                            child: SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : categoriasRegistradas.isEmpty
+                            ? Row(
+                                children: [
+                                  const Icon(Icons.info_outline_rounded, size: 18),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Aún no tienes categorías. Crea la primera arriba.',
+                                      style: TextStyle(color: Colors.grey.shade700),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : ListView.separated(
+                                shrinkWrap: true,
+                                itemCount: categoriasRegistradas.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(height: 10),
+                                itemBuilder: (_, i) {
+                                  final c = categoriasRegistradas[i];
+                                  final esGasto = c['tipo'] == 'GASTO';
+                                  return Row(
+                                    children: [
+                                      Icon(
+                                        esGasto
+                                            ? Icons.trending_down_rounded
+                                            : Icons.trending_up_rounded,
+                                        size: 16,
+                                        color: esGasto
+                                            ? Colors.red.shade500
+                                            : Colors.green.shade600,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          c['nombre']?.toString() ?? 'Sin nombre',
+                                        ),
+                                      ),
+                                      Text(
+                                        c['tipo'].toString(),
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey.shade700,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        tooltip: 'Eliminar categoría',
+                                        visualDensity: VisualDensity.compact,
+                                        icon: const Icon(
+                                          Icons.delete_outline_rounded,
+                                          size: 18,
+                                          color: Colors.red,
+                                        ),
+                                        onPressed: () async {
+                                          final idCategoria =
+                                              (c['id'] is num)
+                                                  ? (c['id'] as num).toInt()
+                                                  : int.tryParse(
+                                                        c['id']?.toString() ?? '',
+                                                      ) ??
+                                                      0;
+                                          if (idCategoria == 0) return;
+
+                                          final confirmar = await showDialog<bool>(
+                                            context: context,
+                                            builder: (_) => AlertDialog(
+                                              title: const Text('Eliminar categoría'),
+                                              content: Text(
+                                                '¿Deseas eliminar "${c['nombre']}"?',
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(context, false),
+                                                  child: const Text('Cancelar'),
+                                                ),
+                                                ElevatedButton(
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor: Colors.red,
+                                                    foregroundColor: Colors.white,
+                                                  ),
+                                                  onPressed: () =>
+                                                      Navigator.pop(context, true),
+                                                  child: const Text('Eliminar'),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                          if (confirmar != true) return;
+
+                                          setModalState(() => guardando = true);
+                                          final resDelete = await service
+                                              .eliminarCategoriaPersonalizada(
+                                                context,
+                                                idCategoria,
+                                              );
+                                          setModalState(() => guardando = false);
+
+                                          if (resDelete.statusCode == 200 ||
+                                              resDelete.statusCode == 204) {
+                                            huboCambios = true;
+                                            await cargarCategoriasModal(
+                                              setModalState,
+                                            );
+                                            if (!mounted) return;
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Categoría eliminada'),
+                                              ),
+                                            );
+                                          } else {
+                                            if (!mounted) return;
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'No se pudo eliminar (${resDelete.statusCode})',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: guardando ? null : () => Navigator.pop(ctx),
+                          child: const Text('Cerrar'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: guardando
+                              ? null
+                              : () async {
+                                  final nombre = nombreCtrl.text.trim();
+                                  if (nombre.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Escribe un nombre para la categoría.'),
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  setModalState(() => guardando = true);
+                                  final res = await service.crearCategoria(context, {
+                                    'idCard': widget.idCard.toString(),
+                                    'nombre': nombre,
+                                    'tipoMovimiento': tipoMovimiento,
+                                  });
+                                  setModalState(() => guardando = false);
+
+                                  if (res.statusCode == 200 || res.statusCode == 201) {
+                                    nombreCtrl.clear();
+                                    huboCambios = true;
+                                    await cargarCategoriasModal(setModalState);
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Categoría creada')),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'No se pudo crear la categoría (${res.statusCode})',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                          child: guardando
+                              ? const SizedBox(
+                                  height: 16,
+                                  width: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Text('Agregar categoría'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (huboCambios) {
+      if (!mounted) return;
+      await _cargarCategorias(widget.idCard);
+    }
+  }
+
+  void _abrirReporteMensual() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ReporteMensualPage(idCard: widget.idCard),
+      ),
+    );
+  }
+
 }
 
 // ====== Widgets de UI ======
@@ -511,10 +828,14 @@ class _BalanceCard extends StatelessWidget {
     required this.saldo,
     required this.ingresos,
     required this.gastos,
+    this.onReporte,
+    this.onAgregarCategoria,
   });
 
   final Color primary;
   final double saldo, ingresos, gastos;
+  final VoidCallback? onReporte;
+  final VoidCallback? onAgregarCategoria;
 
   @override
   Widget build(BuildContext context) {
@@ -571,6 +892,34 @@ class _BalanceCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (onReporte != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (onAgregarCategoria != null)
+                    OutlinedButton.icon(
+                      onPressed: onAgregarCategoria,
+                      icon: const Icon(Icons.category_rounded, size: 18),
+                      label: const Text('Agregar categoría'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(color: Colors.white.withOpacity(.8)),
+                      ),
+                    ),
+                  if (onAgregarCategoria != null) const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: onReporte,
+                    icon: const Icon(Icons.insert_chart_rounded, size: 18),
+                    label: const Text('Reporte'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: BorderSide(color: Colors.white.withOpacity(.8)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -605,12 +954,16 @@ class _MovementTile extends StatelessWidget {
     required this.monto,
     required this.positivo,
     required this.primary,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   final String titulo, categoria, fecha;
   final double monto;
   final bool positivo;
   final Color primary;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -620,50 +973,102 @@ class _MovementTile extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Row(
+        child: Column(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: primary.withOpacity(.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                positivo
-                    ? Icons.trending_up_rounded
-                    : Icons.trending_down_rounded,
-                color: primary,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    titulo,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    categoria,
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Row(
               children: [
-                Text(
-                  amount,
-                  style: TextStyle(fontWeight: FontWeight.w700, color: color),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: primary.withOpacity(.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    positivo
+                        ? Icons.trending_up_rounded
+                        : Icons.trending_down_rounded,
+                    color: primary,
+                  ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  fecha,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        titulo,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        categoria,
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      amount,
+                      style: TextStyle(fontWeight: FontWeight.w700, color: color),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      fecha,
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: primary,
+                    border: Border.all(color: primary),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    onPressed: onEdit,
+                    tooltip: 'Editar',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    color: Colors.white,
+                    icon: const Icon(Icons.edit_rounded, size: 18),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: primary,//primary.withOpacity(.08),
+                    border: Border.all(color: primary.withOpacity(.45)),
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    onPressed: onDelete,
+                    tooltip: 'Eliminar',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    color: Colors.white,
+                    icon: const Icon(Icons.delete_rounded, size: 18),
+                  ),
                 ),
               ],
             ),
@@ -696,7 +1101,7 @@ class _EmptyState extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w700),
           ),
           Text(
-            'Agrega tu primer gasto con el botón "Nuevo".',
+            'Agrega tu primer ingreso o gasto con el botón "Nuevo +".',
             style: TextStyle(color: Colors.grey.shade600),
           ),
         ],

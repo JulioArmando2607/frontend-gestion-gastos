@@ -2,9 +2,12 @@
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:app_gestion_gastos/api/services.dart';
+import 'package:app_gestion_gastos/clases/CardPersonalizado.dart';
 
 class NuevoCardPersonalizadoPage extends StatefulWidget {
-  const NuevoCardPersonalizadoPage({super.key});
+  const NuevoCardPersonalizadoPage({super.key, this.card});
+
+  final CardPersonalizado? card;
 
   @override
   State<NuevoCardPersonalizadoPage> createState() => _NuevoCardPersonalizadoPageState();
@@ -17,6 +20,7 @@ class _NuevoCardPersonalizadoPageState extends State<NuevoCardPersonalizadoPage>
   final _colorCtrl = TextEditingController(text: '#6C63FF'); // default
 
   String? _moneda = 'PEN';
+  bool get _isEdit => widget.card != null;
 
   final ApiService service = ApiService();
 
@@ -25,6 +29,18 @@ class _NuevoCardPersonalizadoPageState extends State<NuevoCardPersonalizadoPage>
   final Color bg = const Color(0xFFF8F3FF);
   final Color sheet = Colors.white;
   final Color border = const Color(0xFFE6E1FF);
+
+  @override
+  void initState() {
+    super.initState();
+    final card = widget.card;
+    if (card != null) {
+      _nombreCtrl.text = card.nombre;
+      _descCtrl.text = card.descripcion;
+      _colorCtrl.text = card.colorHex;
+      _moneda = card.moneda;
+    }
+  }
 
   @override
   void dispose() {
@@ -122,12 +138,14 @@ class _NuevoCardPersonalizadoPageState extends State<NuevoCardPersonalizadoPage>
       'colorHex': hex,           // p.ej. '#6C63FF'
     };
 
-    final res = await service.crearCardPersonalizado(context, body);
+    final res = _isEdit
+        ? await service.editarCardPersonalizado(context, widget.card!.id, body)
+        : await service.crearCardPersonalizado(context, body);
     if (!mounted) return;
 
     if (res.statusCode == 200 || res.statusCode == 201) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Card personalizado creado')),
+        SnackBar(content: Text(_isEdit ? 'Card personalizado actualizado' : 'Card personalizado creado')),
       );
       Navigator.pop(context, true); // avisa éxito al caller
     } else {
@@ -207,7 +225,7 @@ class _NuevoCardPersonalizadoPageState extends State<NuevoCardPersonalizadoPage>
                                 Row(
                                   children: [
                                     Expanded(
-                                      child: Text('Nuevo card personalizado',
+                                      child: Text(_isEdit ? 'Editar card personalizado' : 'Nuevo card personalizado',
                                         style: t.textTheme.headlineSmall?.copyWith(
                                           fontWeight: FontWeight.w800,
                                         ),
@@ -321,7 +339,7 @@ class _NuevoCardPersonalizadoPageState extends State<NuevoCardPersonalizadoPage>
                                     padding: const EdgeInsets.symmetric(vertical: 14),
                                     elevation: 0,
                                   ),
-                                  child: const Text('Guardar', style: TextStyle(fontWeight: FontWeight.w700)),
+                                  child: Text(_isEdit ? 'Actualizar' : 'Guardar', style: const TextStyle(fontWeight: FontWeight.w700)),
                                 ),
                               ),
                             ],
@@ -339,4 +357,6 @@ class _NuevoCardPersonalizadoPageState extends State<NuevoCardPersonalizadoPage>
     );
   }
 }
+
+
 

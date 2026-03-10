@@ -11,7 +11,14 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 
 class EditarMovimientoPage extends StatefulWidget {
   final Movimiento movimiento;
-  const EditarMovimientoPage({super.key, required this.movimiento});
+  final bool showTopBar;
+  final bool showDeleteInTopBar;
+  const EditarMovimientoPage({
+    super.key,
+    required this.movimiento,
+    this.showTopBar = true,
+    this.showDeleteInTopBar = true,
+  });
 
   @override
   State<EditarMovimientoPage> createState() => _EditarMovimientoPageState();
@@ -250,13 +257,14 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
     );
 
     final size = media.size;
-    final sheetHeight = size.height * 0.92;
+    final sheetHeight = size.height * (widget.showTopBar ? 0.92 : 1.0);
 
     return Theme(
       data: t,
       child: Scaffold(
         resizeToAvoidBottomInset: true,
-        appBar: AppBar(
+        appBar: widget.showTopBar
+            ? AppBar(
           leading: IconButton(
             onPressed: () {
               if (Navigator.canPop(context)) {
@@ -272,12 +280,13 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
           ),
           title: const Text('Gastos Diarios'),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.delete_rounded),
-              tooltip: 'Eliminar movimiento',
-              onPressed: _eliminar,
-              color: Colors.red.shade600,
-            ),
+            if (widget.showDeleteInTopBar)
+              IconButton(
+                icon: const Icon(Icons.delete_rounded),
+                tooltip: 'Eliminar movimiento',
+                onPressed: _eliminar,
+                color: Colors.red.shade600,
+              ),
             IconButton(
               icon: const Icon(Icons.logout_rounded),
               tooltip: 'Cerrar sesión',
@@ -310,7 +319,8 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
               },
             ),
           ],
-        ),
+        )
+            : null,
         body: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -323,7 +333,7 @@ class _EditarMovimientoPageState extends State<EditarMovimientoPage> {
             alignment: Alignment.bottomCenter,
             child: FractionallySizedBox(
               widthFactor: 1,
-              heightFactor: 0.92,
+              heightFactor: widget.showTopBar ? 0.92 : 1.0,
               child: Container(
                 height: sheetHeight,
                 width: double.infinity,

@@ -68,24 +68,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<bool> mostrarBotones(codigoBoton) async {
-    setState(() => _isLoading = true);
-
-    try {
-      final response = await service.mostrarBotones(codigoBoton, context);
-      return response.body.toLowerCase() == 'true';
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error inesperado: $e')));
-      return false;
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
   void _crearCuenta() {
     Navigator.push(
       context,
@@ -110,9 +92,24 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _validarBotones() async {
-    mostrarBtnReset = await mostrarBotones('BT001_RESET_PWD');
-    if (!mounted) return;
-    setState(() {});
+    setState(() => _isLoading = true);
+    try {
+      mostrarBtnReset = await service.mostrarBotonHabilitado(
+        'BT001_RESET_PWD',
+        context,
+      );
+      if (!mounted) return;
+      setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error inesperado: $e')));
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override

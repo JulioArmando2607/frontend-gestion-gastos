@@ -32,7 +32,9 @@ class _DashboardPageState extends State<DashboardPage> {
   // Demo: trae tus datos reales según (year, month)
   double gastoMes = 0;
   double proyeccionMes = 0;
-  double avance = 0.2; // 20% solo de ejemplo
+  double avance = 0.2;
+
+  bool mostrarBtnProyeccion = false; // 20% solo de ejemplo
 
   @override
   void initState() {
@@ -40,6 +42,7 @@ class _DashboardPageState extends State<DashboardPage> {
     obtenerDatosDesdeToken();
     _year = DateTime.now().year;
     _fetchData();
+    _validarBotones();
   }
 
   void _onPickMonth(int m) {
@@ -147,6 +150,26 @@ class _DashboardPageState extends State<DashboardPage> {
     return toBeginningOfSentenceCase(formatter.format(ahora)) ?? '';
   }
 
+  Future<void> _validarBotones() async {
+   // setState(() => _isLoading = true);
+    try {
+      mostrarBtnProyeccion = await service.mostrarBotonHabilitado(
+        'BT002_PROYEC_DH',
+        context,
+      );
+      if (!mounted) return;
+      setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error inesperado: $e')));
+    } finally {
+      if (mounted) {
+        //setState(() => _isLoading = false);
+      }
+    }
+  }
   @override
   Widget build(BuildContext context) {
     final months = [
@@ -306,7 +329,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 },
               ),
               const SizedBox(height: 12),
-              _NavTile(
+              if(mostrarBtnProyeccion)_NavTile(
                 icon: Icons.calendar_month,
                 iconBg: const Color(0xFFD8D2FE),
                 title: 'Proyeccion Mensual',

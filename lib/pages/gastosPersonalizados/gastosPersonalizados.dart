@@ -9,7 +9,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:app_gestion_gastos/utils/app_storage.dart';
 import 'dart:convert';
-import 'package:intl/intl.dart';
 
 class GastosPersonalizados extends StatefulWidget {
   const GastosPersonalizados({super.key});
@@ -66,22 +65,20 @@ class _GastosPersonalizadosState extends State<GastosPersonalizados> {
     }
   }
 
-  eliminarMovimiento(id) async {
-    final response = await service.eliminarMovimiento(context, id.toString());
-    if (response.statusCode == 200) {
+  Future<bool> eliminarMovimiento(int id) async {
+    final response = await service.eliminarCardPersonalizado(context, id);
+    if (response.statusCode == 200 || response.statusCode == 204) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Movimiento eliminado con éxito')));
+      ).showSnackBar(SnackBar(content: Text('Tarjeta eliminada con éxito')));
+      return true;
     } else {
-      print('Error al obtener movimientos: ${response.statusCode}');
+      print('Error al eliminar tarjeta: ${response.statusCode}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo eliminar (${response.statusCode})')),
+      );
+      return false;
     }
-  }
-
-  String getFechaFormateada() {
-    DateTime ahora = DateTime.now();
-    final locale = 'es_ES'; // Español
-    final formatter = DateFormat('EEEE, d \'de\' MMMM', locale);
-    return toBeginningOfSentenceCase(formatter.format(ahora)) ?? '';
   }
 
   // Paleta (igual que el dashboard)
@@ -168,84 +165,99 @@ class _GastosPersonalizadosState extends State<GastosPersonalizados> {
           children: [
             // Resumen card
             const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Primero ingresa a una tarjeta para agregar movimientos.',
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.info_outline_rounded),
+              label: const Text(
+                'Ingresa a una tarjeta para agregar movimientos',
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: primary,
+                side: BorderSide(color: primary.withOpacity(.45)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             if (movimientos.isEmpty)
               _EmptyState(primary: primary)
             else
-              ...List.generate(movimientos.length, (i) {  
+              ...List.generate(movimientos.length, (i) {
                 final m = movimientos[i];
-                //    final ingreso = m.tipo == 'INGRESO';
-                return Dismissible(
-                  key: Key(m.id.toString()),
-                  background: _dismissBg(
-                    Colors.blue,
-                    Icons.edit_rounded,
-                    Alignment.centerLeft,
-                  ),
-                  secondaryBackground: _dismissBg(
-                    Colors.red,
-                    Icons.delete_rounded,
-                    Alignment.centerRight,
-                  ),
-                  confirmDismiss: (dir) async {
-                    if (dir == DismissDirection.endToStart) {
-                      final ok = await showDialog<bool>(
-                        context: context,
-                        builder: (_) => AlertDialog(
-                          title: const Text('Confirmar eliminación'),
-                          content: const Text('¿Eliminar este movimiento?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancelar'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Eliminar'),
-                            ),
-                          ],
-                        ),
-                      );
-                      return ok ?? false;
-                    } else {
-                      /*
-                      final created = await Navigator.of(context).push<bool>(
-                        MaterialPageRoute(builder: (_) => EditarMovimientoPage(movimiento: m)),
-                      );
-
-                      // Si guardó algo, refresca tu lista/resumen
-                      if (created == true) {
-                        obtenerCardPersonalizado();
-                        obtenerCarResumen();
-                      }
-
-                         Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (_) => EditarMovimientoPage(movimiento: m)),
-                      ); */
-                      return false;
+                return _BalanceCard(
+                  colorHex: hexToColor(m.colorHex),
+                  saldo: m.saldo,
+                  ingresos: m.ingresos,
+                  gastos: m.gastos,
+                  nombreGasto: m.nombre,
+                  idCard: m.id,
+                  onIngresar: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => GastoPersonalizadoHome(idCard: m.id),
+                      ),
+                    );
+                    if (!mounted) return;
+                    obtenerCardPersonalizado();
+                  },
+                  onEditar: () async {
+                    final updated = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute(
+                        builder: (_) => NuevoCardPersonalizadoPage(card: m),
+                      ),
+                    );
+                    if (updated == true) {
+                      obtenerCardPersonalizado();
                     }
                   },
-                  onDismissed: (dir) async {
-                    if (dir == DismissDirection.endToStart) {
-                      await eliminarMovimiento(m.id);
-                      setState(() {
-                        movimientos.removeAt(i);
-                        obtenerCardPersonalizado();
-                      });
-                      if (!mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Movimiento eliminado')),
-                      );
-                    }
+                  onEliminar: () async {
+                    final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text('Eliminar tarjeta'),
+                        content: Text('¿Deseas eliminar "${m.nombre}"?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancelar'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Eliminar'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (ok != true) return;
+
+                    final eliminado = await eliminarMovimiento(m.id);
+                    if (!eliminado || !mounted) return;
+                    setState(() {
+                      movimientos.removeWhere((item) => item.id == m.id);
+                    });
+                    obtenerCardPersonalizado();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Tarjeta eliminada')),
+                    );
                   },
-                  child: _BalanceCard(
-                    colorHex: hexToColor(m.colorHex),
-                    saldo: m.saldo,
-                    ingresos: m.ingresos,
-                    gastos: m.gastos,
-                    nombreGasto: m.nombre,
-                    idCard: m.id,
-                  ),
                 );
               }),
                   const SizedBox(height: 100), // 👈 Espacio extra para que el FAB no tape
@@ -277,15 +289,6 @@ class _GastosPersonalizadosState extends State<GastosPersonalizados> {
     );
   }
 
-  Widget _dismissBg(Color c, IconData icon, Alignment align) => Container(
-    alignment: align,
-    padding: const EdgeInsets.symmetric(horizontal: 20),
-    decoration: BoxDecoration(
-      color: c,
-      borderRadius: BorderRadius.circular(22),
-    ),
-    child: Icon(icon, color: Colors.white),
-  );
 }
 
 // ====== Widgets de UI ======
@@ -298,100 +301,136 @@ class _BalanceCard extends StatelessWidget {
     required this.gastos,
     required this.nombreGasto,
     required this.idCard,
+    required this.onIngresar,
+    required this.onEditar,
+    required this.onEliminar,
   });
 
   final Color colorHex;
   final double saldo, ingresos, gastos;
   final String nombreGasto;
   final int idCard;
+  final VoidCallback onIngresar;
+  final VoidCallback onEditar;
+  final VoidCallback onEliminar;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => GastoPersonalizadoHome(idCard: idCard),
+    return Card(
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              colorHex.withOpacity(.95),
+              colorHex.withOpacity(.75),
+            ], //colorHex
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        );
-      },
-      child: Card(
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                colorHex.withOpacity(.95),
-                colorHex.withOpacity(.75),
-              ], //colorHex
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(22),
-          ),
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  //  const Icon(Icons.account_balance_wallet_rounded, color: Colors.amber),
-                  // const SizedBox(width: 8),
-                  Text(
+          borderRadius: BorderRadius.circular(22),
+        ),
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
                     nombreGasto,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  const Icon(
-                    Icons.account_balance_wallet_rounded,
-                    color: Colors.amber,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Saldo Total',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'S/ ${saldo.toStringAsFixed(2)}',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
                 ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _stat(
-                      'Ingresos',
-                      'S/ ${ingresos.toStringAsFixed(2)}',
-                    ),
+                _cardActionIcon(
+                  icon: Icons.login_rounded,
+                  tooltip: 'Ingresar',
+                  onTap: onIngresar,
+                ),
+                const SizedBox(width: 6),
+                _cardActionIcon(
+                  icon: Icons.edit_rounded,
+                  tooltip: 'Editar',
+                  onTap: onEditar,
+                ),
+                const SizedBox(width: 6),
+                _cardActionIcon(
+                  icon: Icons.delete_rounded,
+                  tooltip: 'Eliminar',
+                  onTap: onEliminar,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: Colors.amber,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Saldo Total',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
                   ),
-                  Expanded(
-                    child: _stat(
-                      'Gastos',
-                      'S/ ${gastos.toStringAsFixed(2)}',
-                      alignEnd: true,
-                    ),
-                  ),
-                ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'S/ ${saldo.toStringAsFixed(2)}',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _stat(
+                    'Ingresos',
+                    'S/ ${ingresos.toStringAsFixed(2)}',
+                  ),
+                ),
+                Expanded(
+                  child: _stat(
+                    'Gastos',
+                    'S/ ${gastos.toStringAsFixed(2)}',
+                    alignEnd: true,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _cardActionIcon({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.14),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white.withOpacity(.55)),
+      ),
+      child: IconButton(
+        onPressed: onTap,
+        tooltip: tooltip,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+        visualDensity: VisualDensity.compact,
+        color: Colors.white,
+        icon: Icon(icon, size: 16),
       ),
     );
   }
